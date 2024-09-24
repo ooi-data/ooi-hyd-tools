@@ -1,0 +1,4 @@
+fsspec
+numpy
+soundfile
+tqdm
