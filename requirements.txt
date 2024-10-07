@@ -2,3 +2,5 @@ fsspec
 numpy
 soundfile
 tqdm
+requests
+aiohttp
