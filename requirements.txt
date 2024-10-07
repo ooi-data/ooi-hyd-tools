@@ -4,3 +4,4 @@ soundfile
 tqdm
 requests
 aiohttp
+jupyter
