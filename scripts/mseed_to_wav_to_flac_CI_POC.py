@@ -67,21 +67,21 @@ class HydrophoneDay:
         self,
         refdes,
         str_date,
+        fudge_factor,
         data=None,
         mseed_urls=None,
         clean_list=None,
         stream=None,
         spec=None,
-        fudge_factor=None,
     ):
         self.refdes = refdes
         self.date = datetime.strptime(str_date, "%Y/%m/%d")
+        self.fudge_factor = fudge_factor
         self.data = data
         self.mseed_urls = self.get_mseed_urls(str_date, refdes)
         self.clean_list=clean_list
         self.stream=stream
         self.spec=spec
-        self.fudge_factor = fudge_factor
         self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
 
 
@@ -108,7 +108,6 @@ class HydrophoneDay:
     
         return data_url_list
 
-    
     def read_and_repair_gaps(self, wav_data_subtype):
         self.clean_list = _map_concurrency(
             func=self._deal_with_gaps_and_overlaps, 
@@ -177,12 +176,13 @@ class HydrophoneDay:
 def convert_mseed_to_wav(
     hyd_refdes,
     date,
+    fudge_factor,
     sr,
     wav_data_subtype,
     normalize_traces,
-    fudge_factor
 ):
-    hyd = HydrophoneDay(hyd_refdes, date, fudge_factor=fudge_factor)
+    logger.warning(wav_data_subtype)
+    hyd = HydrophoneDay(hyd_refdes, date, fudge_factor)
 
     hyd.read_and_repair_gaps(wav_data_subtype=wav_data_subtype)
 
