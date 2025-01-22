@@ -34,12 +34,12 @@ NORMALIZE_TRACES
     Option to normalize signal by mean of each 5 minute trace. If normalized float32 data type is needed.
 """
 
-HYD_REFDES = "CE04OSBP-LJ01C-11-HYDBBA105"
-DATE = "2025/01/16"
-SR = 64000
-WAV_DATA_SUBTYPE = "FLOAT" #"PCM_24"#'PCM_32'  #audacity uses normalized float
-NORMALIZE_TRACES = False # True if you want to use float32 for audacity
-FUDGE_FACTOR = 0.02
+# HYD_REFDES = "CE04OSBP-LJ01C-11-HYDBBA105"
+# DATE = "2025/01/16"
+# SR = 64000
+# WAV_DATA_SUBTYPE = "FLOAT" #"PCM_24"#'PCM_32'  #audacity uses normalized float
+# NORMALIZE_TRACES = False # True if you want to use float32 for audacity
+# FUDGE_FACTOR = 0.02
 
 
 def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
@@ -72,6 +72,7 @@ class HydrophoneDay:
         clean_list=None,
         stream=None,
         spec=None,
+        fudge_factor=None,
     ):
         self.refdes = refdes
         self.date = datetime.strptime(str_date, "%Y/%m/%d")
@@ -80,6 +81,7 @@ class HydrophoneDay:
         self.clean_list=clean_list
         self.stream=stream
         self.spec=spec
+        self.fudge_factor = fudge_factor
         self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
 
 
@@ -160,7 +162,7 @@ class HydrophoneDay:
             st_contains_large_gap = False
             # loop checks for large gaps
             for gap in gaps:
-                if abs(gap[6]) > FUDGE_FACTOR: # the gaps 6th element is the gap length 
+                if abs(gap[6]) > self.fudge_factor: # the gaps 6th element is the gap length 
                     st_contains_large_gap = True
                     break
             
@@ -178,8 +180,9 @@ def convert_mseed_to_wav(
     sr,
     wav_data_subtype,
     normalize_traces,
+    fudge_factor
 ):
-    hyd = HydrophoneDay(hyd_refdes, date)
+    hyd = HydrophoneDay(hyd_refdes, date, fudge_factor=fudge_factor)
 
     hyd.read_and_repair_gaps(wav_data_subtype=wav_data_subtype)
 
@@ -252,7 +255,7 @@ def convert_mseed_to_wav(
     show_default=True, 
     help="Fudge factor (e.g., 0.02)."
 )
-def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces):
+def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor):
 
     hyd = convert_mseed_to_wav(
         hyd_refdes=hyd_refdes,
@@ -260,6 +263,7 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces):
         sr=sr,
         wav_data_subtype=wav_data_subtype,
         normalize_traces=normalize_traces,
+        fudge_factor=fudge_factor
     )
 
     logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
@@ -279,7 +283,7 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces):
     example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
     logger.info(f"Using {example_time} for logging and sanity checking")
 
-    wav, _ = sf.read(f'acoustic/wav/{date_str}/{HYD_REFDES[18:]}_{example_time}.wav', dtype="float") #TODO hyd shouldnt be hardcoded
+    wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}_{example_time}.wav', dtype="float") #TODO hyd shouldnt be hardcoded
     logger.info(f"wav data sanity check {wav}")
 
     # soundfile PCM_24 FLAC
@@ -291,7 +295,7 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces):
         sf.write(flac_path, data, sr, subtype="PCM_24")
         logger.info(f'Converted {wav_path} to {flac_path}')
 
-    flac, _ = sf.read(f'acoustic/flac/{date_str}/{HYD_REFDES[18:]}_{example_time}.flac', dtype="float")
+    flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}_{example_time}.flac', dtype="float")
     logger.info(f"flac data sanity check {flac}")
 
     wavflac_ratio = wav / flac
