@@ -50,7 +50,7 @@ def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Start the load operations and mark each future with its URL
-        future_to_url = {executor.submit(func, i, *args): i for i in iterator}
+        future_to_url = {executor.submit(func, i, args): i for i in iterator}
         # Disable progress bar
         is_disabled = not verbose
         for future in tqdm(
