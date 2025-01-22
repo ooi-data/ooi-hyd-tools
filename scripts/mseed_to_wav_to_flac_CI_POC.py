@@ -309,3 +309,6 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces):
     diff_path = png_dir / f'{hyd.file_str}_flacwav_diff.png'
     plt.savefig(diff_path, dpi=300, bbox_inches='tight')
     plt.close()
+
+if __name__ == "__main__":
+    main()
