@@ -109,9 +109,10 @@ class HydrophoneDay:
         return data_url_list
 
     def read_and_repair_gaps(self, wav_data_subtype):
+        logger.warning(wav_data_subtype)
         self.clean_list = _map_concurrency(
             func=self._deal_with_gaps_and_overlaps, 
-            args=(wav_data_subtype), 
+            args=wav_data_subtype, 
             iterator=self.mseed_urls, verbose=False
         )
         
