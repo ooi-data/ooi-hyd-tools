@@ -2,3 +2,6 @@
 .ipynb_checkpoints
 
 .vscode
+
+# ignore data dirs
+acoustic/

@@ -295,7 +295,7 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor)
         sf.write(flac_path, data, sr, subtype="PCM_24")
         logger.info(f'Converted {wav_path} to {flac_path}')
 
-    flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}_{example_time}.flac', dtype="float")
+    flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}_{example_time}.flac', dtype="int32")
     logger.info(f"flac data sanity check {flac}")
 
     wavflac_ratio = wav / flac
