@@ -182,7 +182,6 @@ def convert_mseed_to_wav(
     wav_data_subtype,
     normalize_traces,
 ):
-    logger.warning(wav_data_subtype)
     hyd = HydrophoneDay(hyd_refdes, date, fudge_factor)
 
     hyd.read_and_repair_gaps(wav_data_subtype=wav_data_subtype)
