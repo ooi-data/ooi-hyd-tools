@@ -127,7 +127,7 @@ class HydrophoneDay:
     
         stats = dict(cs[0].stats)
         stats["starttime"] = st[0].stats["starttime"]
-        stats["endtime"] = st[-1].stats["endtime"]
+        stats["endtime"] = st[-1].stats["endtime"] # TODO we may want to set the endtime based on n datapoints and not just the endtime of the last trace
         stats["npts"] = len(data_cat)
     
         cs = obs.Stream(traces=obs.Trace(data_cat, header=stats))
@@ -167,8 +167,9 @@ class HydrophoneDay:
                     break
             
             if st_contains_large_gap: # CASE B: - edge case? - LARGE GAPS WILL RAISE ERROR
-                raise ValueError(f"{trace_id}: This file contains large gaps. Cannot repair with currently impliimented methods")
-            else: # CASE C: shortened trace before divert with no large gaps
+                raise ValueError(f"{trace_id}: This file contains large gaps. Cannot repair with currently implimented methods")
+                # TODO if this is deployed we want to make multiple files seperated by gaps > fudge factor
+            else: # CASE C: shortened mseed file before divert with no large gaps
                 print(f"{trace_id}: This file is short but only contains jitter. Simply concatenating")
                 cs = self._merge_by_timestamps(st)
                 print("total traces after concatenation: " + str(len(cs)), flush=True)
@@ -283,7 +284,7 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor)
     example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
     logger.info(f"Using {example_time} for logging and sanity checking")
 
-    wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}_{example_time}.wav', dtype="float") #TODO hyd shouldnt be hardcoded
+    wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}_{example_time}.wav', dtype="float")
     logger.info(f"wav data sanity check {wav}")
 
     # soundfile PCM_24 FLAC
@@ -292,7 +293,8 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor)
         
         flac_path = flac_dir / wav_path.with_suffix('.flac').name
         
-        sf.write(flac_path, data, sr, subtype="PCM_24")
+        sf.write(flac_path, data, sr, subtype="PCM_24") # TODO loss introduced here. Automatic scaling introducing loss? can we get around this because our 
+        # was originally 24-bit??
         logger.info(f'Converted {wav_path} to {flac_path}')
 
     flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}_{example_time}.flac', dtype="int32")
