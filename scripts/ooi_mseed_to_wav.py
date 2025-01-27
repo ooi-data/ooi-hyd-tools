@@ -279,7 +279,7 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor)
     example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
     logger.info(f"Using {example_time} for logging and sanity checking")
 
-    wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}_{example_time}.wav', dtype="float")
+    wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype="float")
     logger.info(f"wav data sanity check {wav}")
 
     # soundfile PCM_24 FLAC
@@ -292,7 +292,7 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor)
         # was originally 24-bit??
         logger.info(f'Converted {wav_path} to {flac_path}')
 
-    flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}_{example_time}.flac', dtype="int32")
+    flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype="int32")
     logger.info(f"flac data sanity check {flac}")
 
     wavflac_ratio = wav / flac
