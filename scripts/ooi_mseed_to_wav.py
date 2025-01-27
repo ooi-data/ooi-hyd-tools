@@ -34,6 +34,7 @@ NORMALIZE_TRACES
     Option to normalize signal by mean of each 5 minute trace. If normalized float32 data type is needed.
 """
 
+# example params
 # HYD_REFDES = "CE04OSBP-LJ01C-11-HYDBBA105"
 # DATE = "2025/01/16"
 # SR = 64000
@@ -186,9 +187,14 @@ def convert_mseed_to_wav(
 
     hyd.read_and_repair_gaps(wav_data_subtype=wav_data_subtype)
 
-    # make dirs 
+    # make dirs
+    logger.info(f"Creating directories for flac and wav files")
     date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-    wav_dir = Path(f'./acoustic/wav/{date_str}')
+    flac_dir = Path(f'./acoustic/flac/{date_str}/{hyd.refdes[18:]}')
+    png_dir = Path(f'./acoustic/png/{date_str}/{hyd.refdes[18:]}')
+    wav_dir = Path(f'./acoustic/wav/{date_str}/{hyd.refdes[18:]}')
+    flac_dir.mkdir(parents=True, exist_ok=True)
+    png_dir.mkdir(parents=True, exist_ok=True)
     wav_dir.mkdir(parents=True, exist_ok=True)
 
     for st in hyd.clean_list:
@@ -211,7 +217,7 @@ def convert_mseed_to_wav(
 
         sf.write(wav_path, st[0].data, sr, subtype=wav_data_subtype) # use sf package to write instead of obspy
 
-    return hyd
+    return hyd, wav_dir, flac_dir, png_dir, date_str
 
 
 @click.command()
@@ -257,7 +263,7 @@ def convert_mseed_to_wav(
 )
 def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor):
 
-    hyd = convert_mseed_to_wav(
+    hyd, wav_dir, flac_dir, png_dir, date_str = convert_mseed_to_wav(
         hyd_refdes=hyd_refdes,
         date=date,
         sr=sr,
@@ -267,16 +273,6 @@ def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor)
     )
 
     logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
-
-    # make dirs 
-    logger.info(f"Creating directories for flac and wav files")
-    date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-    flac_dir = Path(f'./acoustic/flac/{date_str}')
-    wav_dir = Path(f'./acoustic/wav/{date_str}')
-    png_dir = Path(f'./acoustic/png/{date_str}')
-    flac_dir.mkdir(parents=True, exist_ok=True)
-    wav_dir.mkdir(parents=True, exist_ok=True)
-    png_dir.mkdir(parents=True, exist_ok=True)
 
     # first element of list is different each time due to multithreading - could add sort step?
     example_datetime = hyd.clean_list[1][0].stats.starttime # use 2nd element because 1st is more often truncated
