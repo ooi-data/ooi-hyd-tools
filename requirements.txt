@@ -6,3 +6,9 @@ requests
 aiohttp
 jupyter
 obspy
+loguru
+click
+matplotlib
+
+
+
