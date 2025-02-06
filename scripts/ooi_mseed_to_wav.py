@@ -157,7 +157,7 @@ class HydrophoneDay:
             cs = self._merge_by_timestamps(st)
             print("total traces after concatenation: " + str(len(cs)))
         else:
-            print(f"{trace_id}: there are a unexpected number of samples in this file. Checking for large gaps:")
+            print(f"{trace_id}: there are a unexpected number of samples in this file: {samples} Checking for large gaps:")
             gaps = st.get_gaps()
             st_contains_large_gap = False
             # loop checks for large gaps
