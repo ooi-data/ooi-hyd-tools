@@ -70,7 +70,6 @@ class HydrophoneDay:
         str_date,
         fudge_factor,
         data=None,
-        mseed_urls=None,
         clean_list=None,
         stream=None,
         spec=None,
