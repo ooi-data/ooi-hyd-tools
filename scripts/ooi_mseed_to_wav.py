@@ -27,7 +27,7 @@ DATE
     YYYY/MM/DD.
 SR
     Sample rate you wish to use when saving wav files. OOI Hydrophone sampling rate is 64000 Hz.
-WAV_DATA_SUBTYPE
+FORMAT
     'PCM_32' or 'FLOAT' The data subtype format for the resulting WAV files. OOI data is int32, 
      but some media players cannot import in this format. See `sf.available_subtypes('WAV')`
 NORMALIZE_TRACES
@@ -38,7 +38,7 @@ NORMALIZE_TRACES
 # HYD_REFDES = "CE04OSBP-LJ01C-11-HYDBBA105"
 # DATE = "2025/01/16"
 # SR = 64000
-# WAV_DATA_SUBTYPE = "FLOAT" #"PCM_24"#'PCM_32'  #audacity uses normalized float
+# FORMAT = "FLOAT" #"PCM_24"#'PCM_32'  #audacity uses normalized float
 # NORMALIZE_TRACES = False # True if you want to use float32 for audacity
 # FUDGE_FACTOR = 0.02
 
@@ -109,10 +109,10 @@ class HydrophoneDay:
     
         return data_url_list
 
-    def read_and_repair_gaps(self, wav_data_subtype):
+    def read_and_repair_gaps(self, format):
         self.clean_list = _map_concurrency(
             func=self._deal_with_gaps_and_overlaps, 
-            args=wav_data_subtype, 
+            args=format, 
             iterator=self.mseed_urls, verbose=False
         )
         
@@ -135,13 +135,13 @@ class HydrophoneDay:
         return cs
         
 
-    def _deal_with_gaps_and_overlaps(self, url, wav_data_subtype):
-        if wav_data_subtype not in ["PCM_32", "PCM_24", "FLOAT"]:
+    def _deal_with_gaps_and_overlaps(self, url, format):
+        if format not in ["PCM_32", "PCM_24", "FLOAT"]:
             raise ValueError("Invalid wav data subtype. Please specify 'PCM_32' or 'FLOAT'")
         # first read in mseed
-        if wav_data_subtype == "PCM_32" or wav_data_subtype == "PCM_24":
+        if format == "PCM_32" or format == "PCM_24":
             st = obs.read(url, apply_calib=False, dtype=np.int32)
-        if wav_data_subtype == "FLOAT":
+        if format == "FLOAT":
             st = obs.read(url, apply_calib=False, dtype=np.float64)
         
         
@@ -180,12 +180,13 @@ def convert_mseed_to_wav(
     date,
     fudge_factor,
     sr,
-    wav_data_subtype,
+    format,
     normalize_traces,
+    write_wav,
 ):
     hyd = HydrophoneDay(hyd_refdes, date, fudge_factor)
 
-    hyd.read_and_repair_gaps(wav_data_subtype=wav_data_subtype)
+    hyd.read_and_repair_gaps(format=format)
 
     # make dirs
     logger.info(f"Creating directories for flac and wav files")
@@ -204,7 +205,7 @@ def convert_mseed_to_wav(
         
         new_format = dt.strftime("%Y%m%d_%H%M%S")#dt.strftime("%y%m%d%H%M%S%z")
 
-        if wav_data_subtype == 'FLOAT':
+        if format == 'FLOAT':
             st[0].data = st[0].data.astype(np.float64) 
             
         if normalize_traces:
@@ -212,10 +213,14 @@ def convert_mseed_to_wav(
             
         print(type(st[0].data[0]))
 
+        flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
         wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
-        print(str(wav_path))
 
-        sf.write(wav_path, st[0].data, sr, subtype=wav_data_subtype) # use sf package to write instead of obspy
+        print(str(flac_path)) 
+        sf.write(flac_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
+        if write_wav:
+            print(str(wav_path))
+            sf.write(wav_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
 
     return hyd, wav_dir, flac_dir, png_dir, date_str
 
@@ -241,11 +246,11 @@ def convert_mseed_to_wav(
     help="Sample rate in Hz (e.g., 64000)."
 )
 @click.option(
-    "--wav-data-subtype", 
+    "--format", 
     type=click.Choice(["FLOAT", "PCM_24", "PCM_32"], case_sensitive=False), 
     default="FLOAT", 
     show_default=True, 
-    help="WAV data subtype (FLOAT, PCM_24, or PCM_32)."
+    help="format subtype (FLOAT, PCM_24, or PCM_32)."
 )
 @click.option(
     "--normalize-traces", 
@@ -261,55 +266,56 @@ def convert_mseed_to_wav(
     show_default=True, 
     help="Fudge factor (e.g., 0.02)."
 )
-def main(hyd_refdes, date, sr, wav_data_subtype, normalize_traces, fudge_factor):
+@click.option(
+    "--write-wav", 
+    type=bool, 
+    default=False, 
+    show_default=True, 
+    help="Set to True to write wav files in addition to flac."
+)
+def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav):
 
     hyd, wav_dir, flac_dir, png_dir, date_str = convert_mseed_to_wav(
         hyd_refdes=hyd_refdes,
         date=date,
         sr=sr,
-        wav_data_subtype=wav_data_subtype,
+        format=format,
         normalize_traces=normalize_traces,
-        fudge_factor=fudge_factor
+        fudge_factor=fudge_factor,
+        write_wav=write_wav,
     )
 
     logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
 
     # first element of list is different each time due to multithreading - could add sort step?
-    example_datetime = hyd.clean_list[1][0].stats.starttime # use 2nd element because 1st is more often truncated
-    example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
-    logger.info(f"Using {example_time} for logging and sanity checking")
 
-    wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype="float")
-    logger.info(f"wav data sanity check {wav}")
+    if write_wav:
+        logger.info("Some flac/wav comparisions:")
+        example_datetime = hyd.clean_list[1][0].stats.starttime # use 2nd element because 1st is more often truncated
+        example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
+        logger.info(f"Using {example_time} for logging and sanity checking")
 
-    # soundfile PCM_24 FLAC
-    for wav_path in wav_dir.glob('*.wav'):
-        data, sr = sf.read(wav_path, dtype='int32')
-        
-        flac_path = flac_dir / wav_path.with_suffix('.flac').name
-        
-        sf.write(flac_path, data, sr, subtype="PCM_24") # TODO loss introduced here. Automatic scaling introducing loss? can we get around this because our 
-        # was originally 24-bit??
-        logger.info(f'Converted {wav_path} to {flac_path}')
+        wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype="float")
+        logger.info(f"wav data sanity check {wav}")
 
-    flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype="int32")
-    logger.info(f"flac data sanity check {flac}")
+        flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype="float")
+        logger.info(f"flac data sanity check {flac}")
 
-    wavflac_ratio = wav / flac
-    logger.info(f"wav/flac ratio: {wavflac_ratio}")
+        wavflac_ratio = wav / flac
+        logger.info(f"wav/flac ratio: {wavflac_ratio}")
 
-    logger.info("saving some comparison plots")
-    plt.plot(wav[:200], linewidth=0.5)
-    plt.plot(flac[:200], linewidth=0.5)
+        logger.info("saving some comparison plots")
+        plt.plot(wav[:200], linewidth=0.5)
+        plt.plot(flac[:200], linewidth=0.5)
 
-    compare_path = png_dir / f'{hyd.file_str}_flacwav_compare.png'
-    plt.savefig(compare_path, dpi=300, bbox_inches='tight')
-    plt.close()  
+        compare_path = png_dir / f'{hyd.file_str}_flacwav_compare.png'
+        plt.savefig(compare_path, dpi=300, bbox_inches='tight')
+        plt.close()  
 
-    plt.plot(wav[:200] - flac[:200])
-    diff_path = png_dir / f'{hyd.file_str}_flacwav_diff.png'
-    plt.savefig(diff_path, dpi=300, bbox_inches='tight')
-    plt.close()
+        plt.plot(wav[:200] - flac[:200])
+        diff_path = png_dir / f'{hyd.file_str}_flacwav_diff.png'
+        plt.savefig(diff_path, dpi=300, bbox_inches='tight')
+        plt.close()
 
 if __name__ == "__main__":
     main()
