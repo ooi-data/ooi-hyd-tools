@@ -211,6 +211,7 @@ def convert_mseed_to_wav(
             st = st.normalize()
             
         print(type(st[0].data[0]))
+        print(st[0].data[:5])
 
         flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
         wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
@@ -221,7 +222,7 @@ def convert_mseed_to_wav(
             print(str(wav_path))
             sf.write(wav_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
 
-    return hyd, wav_dir, flac_dir, png_dir, date_str
+    return hyd, png_dir, date_str
 
 
 @click.command()
@@ -274,7 +275,7 @@ def convert_mseed_to_wav(
 )
 def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav):
 
-    hyd, wav_dir, flac_dir, png_dir, date_str = convert_mseed_to_wav(
+    hyd, png_dir, date_str = convert_mseed_to_wav(
         hyd_refdes=hyd_refdes,
         date=date,
         sr=sr,
@@ -294,10 +295,15 @@ def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav
         example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
         logger.info(f"Using {example_time} for logging and sanity checking")
 
-        wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype="float")
+        if format == 'FLOAT':
+            dtype = "float64"
+        else:
+            dtype = "int32"
+
+        wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype=dtype)
         logger.info(f"wav data sanity check {wav}")
 
-        flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype="float")
+        flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype=dtype)
         logger.info(f"flac data sanity check {flac}")
 
         wavflac_ratio = wav / flac
