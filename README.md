@@ -26,6 +26,8 @@ https://github.com/lifewatch/pypam
 
 `pip install .`
 
+Now you can run the `mseed-to-audio` command to convert a day of archived ooi mseed to a day of 5 minute audio files.
+
 ```
 mseed-to-audio --hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
 --date "2025/02/20" \
