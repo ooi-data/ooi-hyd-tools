@@ -14,3 +14,19 @@ https://github.com/mbari-org/pbp
 https://github.com/ioos/soundcoop
 
 https://github.com/lifewatch/pypam
+
+# How to convert ooi mseed archives to flac or wav
+`conda create -n ooi_hyd_tools python=3.11 pip`
+`cd ooi-hyd-tools`
+`pip install .`
+
+```
+mseed-to-audio --hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
+--date "2025/02/20" \
+--sr 64000 \
+--format PCM_24 \
+--normalize-traces false \
+--fudge-factor 0.02 \
+--write-wav false
+```
+Adjust arguments as needed
