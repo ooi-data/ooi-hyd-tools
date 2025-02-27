@@ -17,7 +17,9 @@ https://github.com/lifewatch/pypam
 
 # How to convert ooi mseed archives to flac or wav
 `conda create -n ooi_hyd_tools python=3.11 pip`
+
 `cd ooi-hyd-tools`
+
 `pip install .`
 
 ```
