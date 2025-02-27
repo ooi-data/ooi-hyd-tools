@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ooi-hyd-tools"
+version = "0.1.0"
+description = "Tools and scripts for working with OOI hydrophone data"
+requires-python = ">=3.8"
+dependencies = [
+    "fsspec",
+    "numpy",
+    "soundfile",
+    "tqdm",
+    "requests",
+    "aiohttp",
+    "jupyter",
+    "obspy",
+    "loguru",
+    "click",
+    "matplotlib",
+    "pydantic>2"
+]
+[project.scripts]
+mseed-to-audio = "ooi_hyd_tools.mseed_to_audio:main"
+[tool.hatch.build.targets.wheel]
+packages = ["ooi_hyd_tools"]

@@ -1,6 +1,6 @@
 .DS_store
 .ipynb_checkpoints
-
+__pycache__/
 .vscode
 
 # ignore data dirs
