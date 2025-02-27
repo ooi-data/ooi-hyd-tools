@@ -16,7 +16,11 @@ https://github.com/ioos/soundcoop
 https://github.com/lifewatch/pypam
 
 # How to convert ooi mseed archives to flac or wav
-`conda create -n ooi_hyd_tools python=3.11 pip`
+`git clone https://github.com/ooi-data/ooi-hyd-tools.git`
+
+`conda create -n ooi-hyd-tools python=3.11 pip`
+
+`conda activate ooi-hyd-tools`
 
 `cd ooi-hyd-tools`
 
