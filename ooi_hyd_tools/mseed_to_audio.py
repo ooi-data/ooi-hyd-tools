@@ -14,7 +14,7 @@ from loguru import logger
 
 """
 This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
-into 5 minute wav and then flac files using obspy and soundfile. Wav file names are written to "./acoustic/wav/YYYY_MM_DD".
+into 5 minute wav and then flac files using obspy and soundfile. Wav file names are written to "./data/wav/YYYY_MM_DD".
 Files are named in the datetime format "YYMMDDHHMMSS"
 The user can set the following processing parameters: 
 
@@ -190,9 +190,9 @@ def convert_mseed_to_wav(
     # make dirs
     logger.info(f"Creating directories for flac and wav files")
     date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-    flac_dir = Path(f'./acoustic/flac/{date_str}/{hyd.refdes[18:]}')
-    png_dir = Path(f'./acoustic/png/{date_str}/{hyd.refdes[18:]}')
-    wav_dir = Path(f'./acoustic/wav/{date_str}/{hyd.refdes[18:]}')
+    flac_dir = Path(f'./data/flac/{date_str}/{hyd.refdes[18:]}')
+    png_dir = Path(f'./data/png/{date_str}/{hyd.refdes[18:]}')
+    wav_dir = Path(f'./data/wav/{date_str}/{hyd.refdes[18:]}')
     flac_dir.mkdir(parents=True, exist_ok=True)
     png_dir.mkdir(parents=True, exist_ok=True)
     wav_dir.mkdir(parents=True, exist_ok=True)
@@ -300,10 +300,10 @@ def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav
         else:
             dtype = "int32"
 
-        wav, _ = sf.read(f'acoustic/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype=dtype)
+        wav, _ = sf.read(f'data/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype=dtype)
         logger.info(f"wav data sanity check {wav}")
 
-        flac, _ = sf.read(f'acoustic/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype=dtype)
+        flac, _ = sf.read(f'data/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype=dtype)
         logger.info(f"flac data sanity check {flac}")
 
         wavflac_ratio = wav / flac
