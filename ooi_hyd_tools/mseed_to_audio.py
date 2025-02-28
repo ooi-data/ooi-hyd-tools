@@ -69,19 +69,13 @@ class HydrophoneDay:
         refdes,
         str_date,
         fudge_factor,
-        data=None,
         clean_list=None,
-        stream=None,
-        spec=None,
     ):
         self.refdes = refdes
         self.date = datetime.strptime(str_date, "%Y/%m/%d")
         self.fudge_factor = fudge_factor
-        self.data = data
         self.mseed_urls = self.get_mseed_urls(str_date, refdes)
         self.clean_list=clean_list
-        self.stream=stream
-        self.spec=spec
         self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
 
 
