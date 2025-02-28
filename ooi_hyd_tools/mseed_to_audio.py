@@ -258,7 +258,7 @@ def convert_mseed_to_wav(
     type=float, 
     default=0.02, 
     show_default=True, 
-    help="Fudge factor (e.g., 0.02)."
+    help="The maxiximum size gap/overlap in the mseed data you want to tolerate without throwing an error (in seconds)."
 )
 @click.option(
     "--write-wav", 
