@@ -168,7 +168,7 @@ class HydrophoneDay:
                 print("total traces after concatenation: " + str(len(cs)), flush=True)
         return cs
     
-def convert_mseed_to_wav(
+def convert_mseed_to_audio(
     hyd_refdes,
     date,
     fudge_factor,
@@ -269,7 +269,7 @@ def convert_mseed_to_wav(
 )
 def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav):
 
-    hyd, png_dir, date_str = convert_mseed_to_wav(
+    hyd, png_dir, date_str = convert_mseed_to_audio(
         hyd_refdes=hyd_refdes,
         date=date,
         sr=sr,
