@@ -4,4 +4,4 @@ __pycache__/
 .vscode
 
 # ignore data dirs
-acoustic/
+data/
