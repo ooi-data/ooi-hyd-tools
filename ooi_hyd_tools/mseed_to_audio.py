@@ -82,7 +82,7 @@ class HydrophoneDay:
     def get_mseed_urls(self, day_str, refdes):
 
         base_url = "https://rawdata.oceanobservatories.org/files"
-        mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[15:27]}/{day_str}/"
+        mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day_str}/"
         FS = fsspec.filesystem("http")
         print(mainurl)
     
