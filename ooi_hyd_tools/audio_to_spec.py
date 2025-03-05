@@ -79,7 +79,7 @@ def gen_metadata(start_date, file_type, instrument):
     meta_gen.run()
 
 
-def gen_hybrid_millidecade_spectrogram(start_date, instrument, sensitivity_uri, apply_cals=False):
+def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False):
     # set up directories
     download_dir = Path('./downloads')
     json_base_dir = Path('./metadata/json')
@@ -102,8 +102,9 @@ def gen_hybrid_millidecade_spectrogram(start_date, instrument, sensitivity_uri, 
 
     if apply_cals:
         logger.warning("Applying calibrations")
-        sensitivity_uri =  "./metadata/cals/test_cal.nc"
-        hmb_gen.set_sensitivity(170) 
+        sensitivity_uri =  "./metadata/cals/NRS11_H5R6_sensitivity_hms5kHz_PLACEHOLDER.nc"
+        #hmb_gen.set_sensitivity(170) 
+        hmb_gen.set_sensitivity(sensitivity_uri)
 
     config = Config(signature_version=botocore.UNSIGNED)
     s3_client = boto3.client('s3', config=config)
