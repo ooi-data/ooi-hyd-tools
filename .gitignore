@@ -3,5 +3,7 @@
 __pycache__/
 .vscode
 
-# ignore data dirs
+# ignore certain data dirs
 data/
+output/
+metadata/json
