@@ -12,6 +12,7 @@ from tqdm import tqdm
 from pathlib import Path
 from loguru import logger
 
+from audio_to_spec import audio_to_spec
 """
 This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
 into 5 minute wav and then flac files using obspy and soundfile. Wav file names are written to "./data/wav/YYYY_MM_DD".
@@ -47,6 +48,7 @@ def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
     # automatically set max_workers to 2x(available cores)
     if max_workers == -1:
         max_workers = 2 * mp.cpu_count()
+        logger.info(f"Max workers: {max_workers}")
 
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -155,12 +157,12 @@ class HydrophoneDay:
             st_contains_large_gap = False
             # loop checks for large gaps
             for gap in gaps:
-                if abs(gap[6]) > self.fudge_factor: # the gaps 6th element is the gap length 
+                if abs(gap[6]) > self.fudge_factor: # the gaps 6th element is the gap length
                     st_contains_large_gap = True
                     break
             
             if st_contains_large_gap: # CASE B: - edge case? - LARGE GAPS WILL RAISE ERROR
-                raise ValueError(f"{trace_id}: This file contains large gaps. Cannot repair with currently implimented methods")
+                raise ValueError(f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods")
                 # TODO if this is deployed we want to make multiple files seperated by gaps > fudge factor
             else: # CASE C: shortened mseed file before divert with no large gaps
                 print(f"{trace_id}: This file is short but only contains jitter. Simply concatenating")
@@ -184,9 +186,9 @@ def convert_mseed_to_audio(
     # make dirs
     logger.info(f"Creating directories for flac and wav files")
     date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-    flac_dir = Path(f'./data/flac/{date_str}/{hyd.refdes[18:]}')
-    png_dir = Path(f'./data/png/{date_str}/{hyd.refdes[18:]}')
-    wav_dir = Path(f'./data/wav/{date_str}/{hyd.refdes[18:]}')
+    flac_dir = Path(f'./ooi_hyd_tools/data/flac/{date_str}/{hyd.refdes[18:]}')
+    png_dir = Path(f'./ooi_hyd_tools/data/png/{date_str}/{hyd.refdes[18:]}')
+    wav_dir = Path(f'./ooi_hyd_tools/data/wav/{date_str}/{hyd.refdes[18:]}')
     flac_dir.mkdir(parents=True, exist_ok=True)
     png_dir.mkdir(parents=True, exist_ok=True)
     wav_dir.mkdir(parents=True, exist_ok=True)
@@ -218,6 +220,39 @@ def convert_mseed_to_audio(
 
     return hyd, png_dir, date_str
 
+
+def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
+    logger.info("Some flac/wav comparisions:")
+    example_datetime = hyd.clean_list[1][0].stats.starttime # use 2nd element because 1st is more often truncated
+    example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
+    logger.info(f"Using {example_time} for logging and sanity checking")
+
+    if format == 'FLOAT':
+        dtype = "float64"
+    else:
+        dtype = "int32"
+
+    wav, _ = sf.read(f'data/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype=dtype)
+    logger.info(f"wav data sanity check {wav}")
+
+    flac, _ = sf.read(f'data/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype=dtype)
+    logger.info(f"flac data sanity check {flac}")
+
+    wavflac_ratio = wav / flac
+    logger.info(f"wav/flac ratio: {wavflac_ratio}")
+
+    logger.info("saving some comparison plots")
+    plt.plot(wav[:200], linewidth=0.5)
+    plt.plot(flac[:200], linewidth=0.5)
+
+    compare_path = png_dir / f'{hyd.file_str}_flacwav_compare.png'
+    plt.savefig(compare_path, dpi=300, bbox_inches='tight')
+    plt.close()  
+
+    plt.plot(wav[:200] - flac[:200])
+    diff_path = png_dir / f'{hyd.file_str}_flacwav_diff.png'
+    plt.savefig(diff_path, dpi=300, bbox_inches='tight')
+    plt.close()
 
 @click.command()
 @click.option(
@@ -267,54 +302,42 @@ def convert_mseed_to_audio(
     show_default=True, 
     help="Set to True to write wav files in addition to flac."
 )
-def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav):
+@click.option(
+    "--apply-cals", 
+    type=bool, 
+    default=False, 
+    show_default=True, 
+    help="Apply hydrophone calibration before generateing hybrid millidecade spectrograms."
+)
+@click.option(
+    "--stages", 
+    type=click.Choice(["audio", "viz", "all"], case_sensitive=False), 
+    default="audio", 
+    show_default=True, 
+    help="Which stage of pipeline to run: 'audio' converts mseed to audio, 'viz' converts audio to spectrograms, 'all' runs both."
+)
+def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav, apply_cals, stages):
 
-    hyd, png_dir, date_str = convert_mseed_to_audio(
-        hyd_refdes=hyd_refdes,
-        date=date,
-        sr=sr,
-        format=format,
-        normalize_traces=normalize_traces,
-        fudge_factor=fudge_factor,
-        write_wav=write_wav,
-    )
+    if stages == "audio" or stages == "all":
+        hyd, png_dir, date_str = convert_mseed_to_audio(
+            hyd_refdes=hyd_refdes,
+            date=date,
+            sr=sr,
+            format=format,
+            normalize_traces=normalize_traces,
+            fudge_factor=fudge_factor,
+            write_wav=write_wav,
+        )
 
-    logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
+        # first element of list is different each time due to multithreading - could add sort step?
+        logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
 
-    # first element of list is different each time due to multithreading - could add sort step?
+        if write_wav:
+            compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str)
 
-    if write_wav:
-        logger.info("Some flac/wav comparisions:")
-        example_datetime = hyd.clean_list[1][0].stats.starttime # use 2nd element because 1st is more often truncated
-        example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
-        logger.info(f"Using {example_time} for logging and sanity checking")
+    if stages == "viz" or stages == "all":
+        audio_to_spec(date, "flac", hyd_refdes, apply_cals)
 
-        if format == 'FLOAT':
-            dtype = "float64"
-        else:
-            dtype = "int32"
-
-        wav, _ = sf.read(f'data/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype=dtype)
-        logger.info(f"wav data sanity check {wav}")
-
-        flac, _ = sf.read(f'data/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype=dtype)
-        logger.info(f"flac data sanity check {flac}")
-
-        wavflac_ratio = wav / flac
-        logger.info(f"wav/flac ratio: {wavflac_ratio}")
-
-        logger.info("saving some comparison plots")
-        plt.plot(wav[:200], linewidth=0.5)
-        plt.plot(flac[:200], linewidth=0.5)
-
-        compare_path = png_dir / f'{hyd.file_str}_flacwav_compare.png'
-        plt.savefig(compare_path, dpi=300, bbox_inches='tight')
-        plt.close()  
-
-        plt.plot(wav[:200] - flac[:200])
-        diff_path = png_dir / f'{hyd.file_str}_flacwav_diff.png'
-        plt.savefig(diff_path, dpi=300, bbox_inches='tight')
-        plt.close()
 
 if __name__ == "__main__":
     main()
