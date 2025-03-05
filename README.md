@@ -35,6 +35,8 @@ mseed-to-audio --hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
 --format PCM_24 \
 --normalize-traces false \
 --fudge-factor 0.02 \
---write-wav false
+--write-wav false \
+--stages audio \
+--apply-cals false
 ```
 Adjust arguments as needed
