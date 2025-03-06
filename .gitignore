@@ -3,7 +3,8 @@
 __pycache__/
 .vscode
 
-# ignore certain data dirs
+# ignore certain data dirs in pbp dir structure
 data/
 output/
 metadata/json
+downloads
