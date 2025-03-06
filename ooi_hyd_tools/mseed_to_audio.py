@@ -278,7 +278,7 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
 @click.option(
     "--format", 
     type=click.Choice(["FLOAT", "PCM_24", "PCM_32"], case_sensitive=False), 
-    default="FLOAT", 
+    default="PCM_24", 
     show_default=True, 
     help="format subtype (FLOAT, PCM_24, or PCM_32)."
 )
