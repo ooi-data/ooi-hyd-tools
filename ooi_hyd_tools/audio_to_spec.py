@@ -136,7 +136,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False)
     plot_dataset_summary(
         ds,
         lat_lon_for_solpos=HYDBB_COORDS[instrument],
-        title=f'OOI Oregon Offshore (placeholder calibrations!), {HYDBB_COORDS[instrument][0]}°N, {HYDBB_COORDS[instrument][1]}°W', 
+        title=f'{instrument}, {HYDBB_COORDS[instrument][0]}°N, {HYDBB_COORDS[instrument][1]}°W', # TODO human readable title
         ylim=FREQ_LIMS,
         cmlim=(20, 90), # TODO should be constant
         jpeg_filename=f'{str(output_dir)}/{instrument}_{start_date}.png',

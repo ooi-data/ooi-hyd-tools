@@ -163,7 +163,9 @@ class HydrophoneDay:
                     break
             
             if st_contains_large_gap: # CASE B: - edge case? - LARGE GAPS WILL RAISE ERROR
-                raise ValueError(f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods")
+                logger.warning(f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods")
+                return None
+                #raise ValueError(f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods")
                 # TODO if this is deployed we want to make multiple files seperated by gaps > fudge factor
             else: # CASE C: shortened mseed file before divert with no large gaps
                 print(f"{trace_id}: This file is short but only contains jitter. Simply concatenating")
@@ -195,29 +197,30 @@ def convert_mseed_to_audio(
     wav_dir.mkdir(parents=True, exist_ok=True)
 
     for st in hyd.clean_list:
-        start_time = str(st[0].stats['starttime'])
-        end_time = str(st[0].stats['endtime'])
-        dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
-        
-        new_format = dt.strftime("%Y%m%d_%H%M%S")#dt.strftime("%y%m%d%H%M%S%z")
-
-        if format == 'FLOAT':
-            st[0].data = st[0].data.astype(np.float64) 
+        if not isinstance(st, type(None)): # TODO as of now we are throwing out 5 minute segments with gaps > fudge factor
+            start_time = str(st[0].stats['starttime'])
+            end_time = str(st[0].stats['endtime'])
+            dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
             
-        if normalize_traces:
-            st = st.normalize()
-            
-        print(type(st[0].data[0]))
-        print(st[0].data[:5])
+            new_format = dt.strftime("%Y%m%d_%H%M%S")#dt.strftime("%y%m%d%H%M%S%z")
 
-        flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
-        wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
+            if format == 'FLOAT':
+                st[0].data = st[0].data.astype(np.float64) 
+                
+            if normalize_traces:
+                st = st.normalize()
+                
+            print(type(st[0].data[0]))
+            print(st[0].data[:5])
 
-        print(str(flac_path)) 
-        sf.write(flac_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
-        if write_wav:
-            print(str(wav_path))
-            sf.write(wav_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
+            flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
+            wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
+
+            print(str(flac_path)) 
+            sf.write(flac_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
+            if write_wav:
+                print(str(wav_path))
+                sf.write(wav_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
 
     return hyd, png_dir, date_str
 
