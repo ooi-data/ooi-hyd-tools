@@ -13,6 +13,7 @@ from pathlib import Path
 from loguru import logger
 
 from audio_to_spec import audio_to_spec
+from cloud import sync_png_nc_to_s3
 """
 This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
 into 5 minute wav and then flac files using obspy and soundfile. Wav file names are written to "./data/wav/YYYY_MM_DD".
@@ -310,13 +311,31 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     help="Apply hydrophone calibration before generateing hybrid millidecade spectrograms."
 )
 @click.option(
+    "--s3-sync", 
+    type=bool, 
+    default=False, 
+    show_default=True, 
+    help="Whether to sync .nc and .png files in local output folder to s3"
+)
+@click.option(
     "--stages", 
     type=click.Choice(["audio", "viz", "all"], case_sensitive=False), 
     default="audio", 
     show_default=True, 
     help="Which stage of pipeline to run: 'audio' converts mseed to audio, 'viz' converts audio to spectrograms, 'all' runs both."
 )
-def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav, apply_cals, stages):
+def main(
+    hyd_refdes, 
+    date, 
+    sr, 
+    format, 
+    normalize_traces, 
+    fudge_factor, 
+    write_wav, 
+    apply_cals, 
+    s3_sync, 
+    stages
+):
 
     if stages == "audio" or stages == "all":
         hyd, png_dir, date_str = convert_mseed_to_audio(
@@ -337,6 +356,10 @@ def main(hyd_refdes, date, sr, format, normalize_traces, fudge_factor, write_wav
 
     if stages == "viz" or stages == "all":
         audio_to_spec(date, "flac", hyd_refdes, apply_cals)
+    
+    if s3_sync:
+        sync_png_nc_to_s3(hyd_refdes, date)
+
 
 
 if __name__ == "__main__":
