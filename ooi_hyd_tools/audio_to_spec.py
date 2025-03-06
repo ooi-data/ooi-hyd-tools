@@ -1,4 +1,3 @@
-from pbp.meta_gen.gen_nrs import NRSMetadataGenerator
 from pbp.meta_gen.gen_iclisten import IcListenMetadataGenerator
 from pbp.logging_helper import create_logger_info
 from datetime import datetime
