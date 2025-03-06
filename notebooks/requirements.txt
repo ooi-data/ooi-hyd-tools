@@ -1,0 +1,12 @@
+# requirements for ocean sonics notebook
+fsspec
+numpy
+soundfile
+tqdm
+requests
+aiohttp
+jupyter
+obspy
+loguru
+click
+matplotlib
