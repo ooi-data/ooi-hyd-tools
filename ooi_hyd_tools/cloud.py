@@ -1,6 +1,7 @@
 import fsspec
 from datetime import datetime
 from pathlib import Path
+from loguru import logger
 
 OOI_BUCKET = "s3://ooi-acoustic-data"
 
@@ -13,7 +14,7 @@ def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
     def is_valid_file(fp: Path):
 
         filename = fp.name
-        
+
         return instrument in filename and str(year) in filename
 
     s3_fs = fsspec.filesystem('s3')
@@ -23,7 +24,7 @@ def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
     for fp in nc_files:
         if fp.is_file() and is_valid_file(fp):
             s3_uri = f"{OOI_BUCKET}/hmb/{year}/{instrument}/{fp.name}"
-            print(f"Uploading {fp} to {s3_uri}")
+            logger.info(f"Uploading {fp} to {s3_uri}")
             s3_fs.put(str(fp), s3_uri)
 
     # Upload .png files to spectrograms/YYYY/
@@ -31,5 +32,5 @@ def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
     for fp in png_files:
         if fp.is_file() and is_valid_file(fp):
             s3_uri = f"{OOI_BUCKET}/spectrograms/{year}/{instrument}/{fp.name}"
-            print(f"Uploading {fp} to {s3_uri}")
+            logger.info(f"Uploading {fp} to {s3_uri}")
             s3_fs.put(str(fp), s3_uri)
