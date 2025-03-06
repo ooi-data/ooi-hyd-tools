@@ -28,6 +28,7 @@ dependencies = [
 
 [project.scripts]
 mseed-to-audio = "ooi_hyd_tools.mseed_to_audio:main"
+run-acoustic-date-range = "ooi_hyd_tools.pipeline:run_acoustic_date_range"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ooi_hyd_tools"]
