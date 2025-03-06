@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ooi-hyd-tools"
-version = "0.3.0"
+version = "0.4.0"
 description = "Tools and scripts for working with OOI hydrophone data"
 requires-python = ">=3.9"
 dependencies = [
