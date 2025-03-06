@@ -9,6 +9,7 @@ description = "Tools and scripts for working with OOI hydrophone data"
 requires-python = ">=3.9"
 dependencies = [
     "fsspec",
+    "s3fs",
     "numpy",
     "soundfile",
     "tqdm",
@@ -20,6 +21,7 @@ dependencies = [
     "click",
     "matplotlib",
     "pydantic>2",
+    "prefect>=2,<3",
     #"mbari-pbp @ git+ssh://git@github.com/jdduprey/pbp.git@ooi-qaqc",
     "mbari-pbp",
 ]
