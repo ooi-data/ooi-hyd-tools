@@ -12,8 +12,8 @@ from tqdm import tqdm
 from pathlib import Path
 from loguru import logger
 
-from audio_to_spec import audio_to_spec
-from cloud import sync_png_nc_to_s3
+from ooi_hyd_tools.audio_to_spec import audio_to_spec
+from ooi_hyd_tools.cloud import sync_png_nc_to_s3
 """
 This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
 into 5 minute wav and then flac files using obspy and soundfile. Wav file names are written to "./data/wav/YYYY_MM_DD".

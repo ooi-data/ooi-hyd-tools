@@ -2,7 +2,7 @@ import click
 
 from prefect import flow
 from datetime import datetime, timedelta
-from mseed_to_audio import main as acoustic_pipeline
+from ooi_hyd_tools.mseed_to_audio import main as acoustic_pipeline
 
 
 @flow
@@ -41,11 +41,11 @@ def acoustic_flow_oneday(
 @click.option("--format", type=click.Choice(["FLOAT", "PCM_24", "PCM_32"], case_sensitive=False), 
     default="FLOAT", 
 )
-@click.option("--normalize_traces", type=bool, default=False)
+@click.option("--normalize-traces", type=bool, default=False)
 @click.option("--fudge-factor", type=float, default=0.02)
-@click.option("--write_wav", type=bool, default=False)
-@click.option("--apply_cals", type=bool, default=False) # TODO not yet implemented
-@click.option("--s3_sync", type=bool, default=False)
+@click.option("--write-wav", type=bool, default=False)
+@click.option("--apply-cals", type=bool, default=False) # TODO not yet implemented
+@click.option("--s3-sync", type=bool, default=False)
 @click.option(
     "--stages", 
     type=click.Choice(["audio", "viz", "all"], case_sensitive=False), 
@@ -64,12 +64,12 @@ def run_acoustic_date_range(
     s3_sync,
     stages,
 ):
-    start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    start_date = datetime.strptime(start_date, "%Y/%m/%d")
 
     if end_date is None: # run a single day
          acoustic_flow_oneday(
                 hyd_refdes=hyd_refdes,
-                start_date=start_date,
+                date=start_date,
                 sr=sr,
                 format=format,
                 normalize_traces=normalize_traces,
@@ -81,10 +81,12 @@ def run_acoustic_date_range(
             )
 
     else: # run a range of days
+        end_date = datetime.strptime(end_date, "%Y/%m/%d")
+
         while start_date <= end_date:
             acoustic_flow_oneday(
                 hyd_refdes=hyd_refdes,
-                start_date=start_date,
+                date=start_date,
                 sr=sr,
                 format=format,
                 normalize_traces=normalize_traces,
