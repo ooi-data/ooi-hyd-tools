@@ -1,9 +1,9 @@
-.DS_store
+.DS_Store
 .ipynb_checkpoints
 __pycache__/
-.vscode
+.vscode/
 
-# ignore certain data dirs in pbp dir structure
+# Ignore certain data dirs in pbp dir structure
 ooi_hyd_tools/data/
 output/
 metadata/json/
