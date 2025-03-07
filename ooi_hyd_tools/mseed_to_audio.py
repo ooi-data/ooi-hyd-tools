@@ -92,6 +92,7 @@ class HydrophoneDay:
         mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day_str}/"
         FS = fsspec.filesystem("http")
         print(mainurl)
+        print(Path.cwd())
     
         try:
             data_url_list = sorted(
@@ -111,7 +112,6 @@ class HydrophoneDay:
 
     def read_and_repair_gaps(self, format):
 
-        print(Path.cwd())    
         if self.mseed_urls is None:
             return None
         else:
