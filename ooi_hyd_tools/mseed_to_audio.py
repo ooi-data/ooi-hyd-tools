@@ -84,8 +84,8 @@ class HydrophoneDay:
         self.clean_list=clean_list
         self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
 
-
     def get_mseed_urls(self, day_str, refdes):
+        logger = select_logger()
 
         base_url = "https://rawdata.oceanobservatories.org/files"
         mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day_str}/"
