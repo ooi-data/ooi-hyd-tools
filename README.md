@@ -26,10 +26,10 @@ https://github.com/lifewatch/pypam
 
 `pip install -e .`
 
-Now you can run the `mseed-to-audio` command to convert a day of archived ooi mseed to a day of 5 minute audio files.
+Now you can run the `acoustic-pipeline` command to convert a day of archived ooi mseed to a day of 5 minute audio files.
 
 ```
-mseed-to-audio --hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
+acoustic-pipeline --hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
 --date "2025/02/20" \
 --sr 64000 \
 --format PCM_24 \

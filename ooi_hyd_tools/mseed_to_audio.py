@@ -96,21 +96,24 @@ class HydrophoneDay:
                 if f["type"] == "file" and f["name"].endswith(".mseed")
             )
         except Exception as e:
-            print("Client response: ", e)
+            logger.warning("Client response: ", e)
             return None
     
         if not data_url_list:
-            print("No Data Available for Specified Time")
+            logger.warning("No Data Available for Specified Time")
             return None
     
         return data_url_list
 
     def read_and_repair_gaps(self, format):
-        self.clean_list = _map_concurrency(
-            func=self._deal_with_gaps_and_overlaps, 
-            args=format, 
-            iterator=self.mseed_urls, verbose=False
-        )
+        if self.mseed_urls is None:
+            return None
+        else:
+            self.clean_list = _map_concurrency(
+                func=self._deal_with_gaps_and_overlaps, 
+                args=format, 
+                iterator=self.mseed_urls, verbose=False
+            )
         
             
     def _merge_by_timestamps(self, st):
@@ -186,43 +189,46 @@ def convert_mseed_to_audio(
 
     hyd.read_and_repair_gaps(format=format)
 
-    # make dirs
-    logger.info(f"Creating directories for flac and wav files")
-    date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-    flac_dir = Path(f'./ooi_hyd_tools/data/flac/{date_str}/{hyd.refdes[18:]}')
-    png_dir = Path(f'./ooi_hyd_tools/data/png/{date_str}/{hyd.refdes[18:]}')
-    wav_dir = Path(f'./ooi_hyd_tools/data/wav/{date_str}/{hyd.refdes[18:]}')
-    flac_dir.mkdir(parents=True, exist_ok=True)
-    png_dir.mkdir(parents=True, exist_ok=True)
-    wav_dir.mkdir(parents=True, exist_ok=True)
+    if hyd.clean_list is None: #TODO cleaner solution
+        return None, None, None
+    else:
+        # make dirs
+        logger.info(f"Creating directories for flac and wav files")
+        date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
+        flac_dir = Path(f'./ooi_hyd_tools/data/flac/{date_str}/{hyd.refdes[18:]}')
+        png_dir = Path(f'./ooi_hyd_tools/data/png/{date_str}/{hyd.refdes[18:]}')
+        wav_dir = Path(f'./ooi_hyd_tools/data/wav/{date_str}/{hyd.refdes[18:]}')
+        flac_dir.mkdir(parents=True, exist_ok=True)
+        png_dir.mkdir(parents=True, exist_ok=True)
+        wav_dir.mkdir(parents=True, exist_ok=True)
 
-    for st in hyd.clean_list:
-        if not isinstance(st, type(None)): # TODO as of now we are throwing out 5 minute segments with gaps > fudge factor
-            start_time = str(st[0].stats['starttime'])
-            end_time = str(st[0].stats['endtime'])
-            dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
-            
-            new_format = dt.strftime("%Y%m%d_%H%M%S")#dt.strftime("%y%m%d%H%M%S%z")
-
-            if format == 'FLOAT':
-                st[0].data = st[0].data.astype(np.float64) 
+        for st in hyd.clean_list:
+            if st is not None: # TODO as of now we are throwing out 5 minute segments with gaps > fudge factor
+                start_time = str(st[0].stats['starttime'])
+                end_time = str(st[0].stats['endtime'])
+                dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
                 
-            if normalize_traces:
-                st = st.normalize()
-                
-            print(type(st[0].data[0]))
-            print(st[0].data[:5])
+                new_format = dt.strftime("%Y%m%d_%H%M%S")#dt.strftime("%y%m%d%H%M%S%z")
 
-            flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
-            wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
+                if format == 'FLOAT':
+                    st[0].data = st[0].data.astype(np.float64) 
+                    
+                if normalize_traces:
+                    st = st.normalize()
+                    
+                print(type(st[0].data[0]))
+                print(st[0].data[:5])
 
-            print(str(flac_path)) 
-            sf.write(flac_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
-            if write_wav:
-                print(str(wav_path))
-                sf.write(wav_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
+                flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
+                wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
 
-    return hyd, png_dir, date_str
+                print(str(flac_path)) 
+                sf.write(flac_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
+                if write_wav:
+                    print(str(wav_path))
+                    sf.write(wav_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
+
+        return hyd, png_dir, date_str
 
 
 def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
@@ -258,86 +264,18 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     plt.savefig(diff_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-@click.command()
-@click.option(
-    "--hyd-refdes", 
-    type=str, 
-    required=True, 
-    help="Hydrophone reference designator (e.g., 'CE04OSBP-LJ01C-11-HYDBBA105')."
-)
-@click.option(
-    "--date", 
-    type=str, 
-    required=True, 
-    help="Date in the format YYYY/MM/DD (e.g., '2025/01/16')."
-)
-@click.option(
-    "--sr", 
-    type=int, 
-    default=64000, 
-    show_default=True, 
-    help="Sample rate in Hz (e.g., 64000)."
-)
-@click.option(
-    "--format", 
-    type=click.Choice(["FLOAT", "PCM_24", "PCM_32"], case_sensitive=False), 
-    default="PCM_24", 
-    show_default=True, 
-    help="format subtype (FLOAT, PCM_24, or PCM_32)."
-)
-@click.option(
-    "--normalize-traces", 
-    type=bool, 
-    default=False, 
-    show_default=True, 
-    help="Set to True to normalize traces for Audacity."
-)
-@click.option(
-    "--fudge-factor", 
-    type=float, 
-    default=0.02, 
-    show_default=True, 
-    help="The maxiximum size gap/overlap in the mseed data you want to tolerate without throwing an error (in seconds)."
-)
-@click.option(
-    "--write-wav", 
-    type=bool, 
-    default=False, 
-    show_default=True, 
-    help="Set to True to write wav files in addition to flac."
-)
-@click.option(
-    "--apply-cals", 
-    type=bool, 
-    default=False, 
-    show_default=True, 
-    help="Apply hydrophone calibration before generateing hybrid millidecade spectrograms."
-)
-@click.option(
-    "--s3-sync", 
-    type=bool, 
-    default=False, 
-    show_default=True, 
-    help="Whether to sync .nc and .png files in local output folder to s3"
-)
-@click.option(
-    "--stages", 
-    type=click.Choice(["audio", "viz", "all"], case_sensitive=False), 
-    default="audio", 
-    show_default=True, 
-    help="Which stage of pipeline to run: 'audio' converts mseed to audio, 'viz' converts audio to spectrograms, 'all' runs both."
-)
-def main(
+
+def acoustic_pipeline(
     hyd_refdes, 
     date, 
     sr, 
-    format, 
-    normalize_traces, 
-    fudge_factor, 
-    write_wav, 
+    format,
+    normalize_traces,
+    fudge_factor,
+    write_wav,
     apply_cals, 
     s3_sync, 
-    stages
+    stages,
 ):
 
     if stages == "audio" or stages == "all":
@@ -350,6 +288,9 @@ def main(
             fudge_factor=fudge_factor,
             write_wav=write_wav,
         )
+        if hyd is None:
+            logger.warning(f"No data availale for {date}. Moving to next day.")
+            return
 
         # first element of list is different each time due to multithreading - could add sort step?
         logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
@@ -366,4 +307,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main()
+    acoustic_pipeline()
