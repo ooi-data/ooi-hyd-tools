@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
 from loguru import logger
 
-PREFECT_DEPLOYMENT = "hydbb_pipeline_2vcpu_16gb"
+PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_2vcpu_16gb"
 
 @click.command()
 @click.option(
