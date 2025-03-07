@@ -2,34 +2,7 @@ import click
 
 from prefect import flow, task
 from datetime import datetime, timedelta
-from ooi_hyd_tools.mseed_to_audio import acoustic_pipeline
-
-
-@flow
-def acoustic_flow_oneday(
-    hyd_refdes, 
-    date, 
-    sr, 
-    format, 
-    normalize_traces, 
-    fudge_factor, 
-    write_wav, 
-    apply_cals, 
-    s3_sync,
-    stages,
-):
-    acoustic_pipeline(
-    hyd_refdes=hyd_refdes,
-    date=date,
-    sr=sr,
-    format=format,
-    normalize_traces=normalize_traces,
-    fudge_factor=fudge_factor,
-    write_wav=write_wav,
-    apply_cals=apply_cals,
-    s3_sync=s3_sync,
-    stages=stages,
-)
+from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
 
 
 @click.command()

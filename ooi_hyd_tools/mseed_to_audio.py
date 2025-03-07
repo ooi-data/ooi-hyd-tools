@@ -5,12 +5,12 @@ import numpy as np
 import multiprocessing as mp
 import soundfile as sf
 import matplotlib.pyplot as plt
-import click
 
 from datetime import datetime
 from tqdm import tqdm
 from pathlib import Path
 from loguru import logger
+from prefect import flow
 
 from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
@@ -264,8 +264,8 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     plt.savefig(diff_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-
-def acoustic_pipeline(
+@flow
+def acoustic_flow_oneday(
     hyd_refdes, 
     date, 
     sr, 
@@ -307,4 +307,4 @@ def acoustic_pipeline(
 
 
 if __name__ == "__main__":
-    acoustic_pipeline()
+    acoustic_flow_oneday()
