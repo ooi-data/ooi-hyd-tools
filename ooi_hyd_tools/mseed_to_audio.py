@@ -17,6 +17,7 @@ from ooi_hyd_tools.utils import select_logger
 
 logger = select_logger()
 
+
 """
 This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
 into 5 minute wav and then flac files using obspy and soundfile. Wav file names are written to "./data/wav/YYYY_MM_DD".
@@ -50,6 +51,7 @@ NORMALIZE_TRACES
 
 def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
     # automatically set max_workers to 2x(available cores)
+    logger = select_logger()
     if max_workers == -1:
         max_workers = 2 * mp.cpu_count()
         logger.info(f"Max workers: {max_workers}")
