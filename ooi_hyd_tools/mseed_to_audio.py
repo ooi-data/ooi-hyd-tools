@@ -187,7 +187,7 @@ def convert_mseed_to_audio(
     normalize_traces,
     write_wav,
 ):
-    select_logger()
+    logger = select_logger()
     hyd = HydrophoneDay(hyd_refdes, date, fudge_factor)
 
     hyd.read_and_repair_gaps(format=format)

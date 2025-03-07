@@ -15,6 +15,7 @@ import boto3
 import botocore
 from botocore.config import Config
 
+from ooi_hyd_tools.utils import select_logger
 
 # hydrophone specification
 # NOTE this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC 
@@ -44,6 +45,7 @@ def audio_to_spec(
         apply_cals=False,
     ):
     
+    logger = select_logger()
     # pbp takes dates as strings without slashes
     instrument = hyd_refdes[-9:]
     start_date = start_date.replace('/', '')
