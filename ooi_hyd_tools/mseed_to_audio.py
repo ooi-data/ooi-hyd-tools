@@ -270,7 +270,7 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     plt.close()
 
 
-@flow
+@flow(log_prints=True)
 def acoustic_flow_oneday(
     hyd_refdes, 
     date, 
