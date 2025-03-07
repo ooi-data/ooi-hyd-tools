@@ -1,0 +1,31 @@
+name: ooi-hyd-tools
+prefect-version: 2.14.15
+
+# build section allows you to manage and build docker images
+build:
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push:
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.git_clone:
+    repository: https://github.com/ooi-data/ooi-hyd-tools.git
+    branch: main
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: hydbb_pipeline_2vcpu_16gb
+  version:
+  tags: []
+  description:
+  entrypoint: ./ooi_hyd_tools/pipeline.py:acoustic_flow_oneday
+  parameters: {}
+  work_pool:
+    name: hydrophone-pool
+    work_queue_name:
+    job_variables:
+      cpu: 2048
+      memory: 16384
+  schedule:
+  is_schedule_active: true
