@@ -85,7 +85,6 @@ class HydrophoneDay:
         self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
 
     def get_mseed_urls(self, day_str, refdes):
-        logger = select_logger()
         
         base_url = "https://rawdata.oceanobservatories.org/files"
         mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day_str}/"
@@ -99,11 +98,11 @@ class HydrophoneDay:
                 if f["type"] == "file" and f["name"].endswith(".mseed")
             )
         except Exception as e:
-            logger.warning("Client response: ", str(e))
+            print("Client response: ", str(e))
             return None
     
         if not data_url_list:
-            logger.warning("No Data Available for Specified Time")
+            print("No Data Available for Specified Time")
             return None
     
         return data_url_list
