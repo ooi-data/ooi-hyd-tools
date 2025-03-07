@@ -3,7 +3,9 @@ import click
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta
 from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
-from loguru import logger
+from ooi_hyd_tools.utils import select_logger
+
+logger = select_logger()
 
 PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_2vcpu_16gb"
 

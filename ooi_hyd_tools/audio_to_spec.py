@@ -7,7 +7,6 @@ from pbp.simpleapi import HmbGen
 from pbp import get_pbp_version
 from pbp.plotting import plot_dataset_summary
 from pathlib import Path
-from loguru import logger
 from prefect import task
 
 # TODO pbp gets angry if I don't pass these
@@ -16,6 +15,8 @@ import botocore
 from botocore.config import Config
 
 from ooi_hyd_tools.utils import select_logger
+
+logger = select_logger()
 
 # hydrophone specification
 # NOTE this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC 

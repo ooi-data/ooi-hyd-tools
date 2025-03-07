@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm
 from pathlib import Path
-from loguru import logger
 from prefect import task, flow
 
 from ooi_hyd_tools.audio_to_spec import audio_to_spec

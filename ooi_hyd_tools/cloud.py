@@ -7,7 +7,7 @@ from prefect import task
 from ooi_hyd_tools.utils import select_logger
 
 OOI_BUCKET = "s3://ooi-acoustic-data"
-
+logger = select_logger()
 
 @task
 def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
