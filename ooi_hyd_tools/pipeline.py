@@ -108,7 +108,7 @@ def run_acoustic_pipeline(
         start_date = datetime.strptime(start_date, "%Y/%m/%d")
         if end_date is None:
 
-            run_name = f"{hyd_refdes}_{start_date.strftime("%Y-%m-%d")}"
+            run_name = f'{hyd_refdes}_{start_date.strftime("%Y-%m-%d")}'
             params = {
                 "hyd_refdes": hyd_refdes,
                 "date": start_date.strftime("%Y/%m/%d"),
@@ -132,7 +132,7 @@ def run_acoustic_pipeline(
         else: 
             end_date = datetime.strptime(end_date, "%Y/%m/%d")
             while start_date <= end_date:
-                run_name = f"{hyd_refdes}_{start_date.strftime("%Y-%m-%d")}"
+                run_name = f'{hyd_refdes}_{start_date.strftime("%Y-%m-%d")}'
                 params = {
                     "hyd_refdes": hyd_refdes,
                     "date": start_date.strftime("%Y/%m/%d"),
