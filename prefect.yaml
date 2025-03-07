@@ -15,7 +15,7 @@ pull:
 
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
-- name: hydbb_pipeline_2vcpu_16gb
+- name: hydbb_pipeline_4vcpu_30gb
   version:
   tags: []
   description:
@@ -24,8 +24,5 @@ deployments:
   work_pool:
     name: hydrophone-pool
     work_queue_name:
-    job_variables:
-      cpu: 2048
-      memory: 16384
   schedule:
   is_schedule_active: true
