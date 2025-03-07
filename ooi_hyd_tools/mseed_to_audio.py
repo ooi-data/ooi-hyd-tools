@@ -15,6 +15,9 @@ from prefect import task, flow
 from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
 from ooi_hyd_tools.utils import select_logger
+
+logger = select_logger()
+
 """
 This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
 into 5 minute wav and then flac files using obspy and soundfile. Wav file names are written to "./data/wav/YYYY_MM_DD".
@@ -187,7 +190,6 @@ def convert_mseed_to_audio(
     normalize_traces,
     write_wav,
 ):
-    logger = select_logger()
     hyd = HydrophoneDay(hyd_refdes, date, fudge_factor)
 
     hyd.read_and_repair_gaps(format=format)
