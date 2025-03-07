@@ -2,9 +2,12 @@ import fsspec
 from datetime import datetime
 from pathlib import Path
 from loguru import logger
+from prefect import task
 
 OOI_BUCKET = "s3://ooi-acoustic-data"
 
+
+@task
 def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
     """sync .nc and .png files to S3 based on the given date and refdes."""
 

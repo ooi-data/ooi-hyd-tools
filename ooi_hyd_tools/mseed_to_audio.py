@@ -10,7 +10,7 @@ from datetime import datetime
 from tqdm import tqdm
 from pathlib import Path
 from loguru import logger
-from prefect import flow
+from prefect import task, flow
 
 from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
@@ -175,7 +175,8 @@ class HydrophoneDay:
                 cs = self._merge_by_timestamps(st)
                 print("total traces after concatenation: " + str(len(cs)), flush=True)
         return cs
-    
+
+@task
 def convert_mseed_to_audio(
     hyd_refdes,
     date,
@@ -231,6 +232,7 @@ def convert_mseed_to_audio(
         return hyd, png_dir, date_str
 
 
+@task
 def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     logger.info("Some flac/wav comparisions:")
     example_datetime = hyd.clean_list[1][0].stats.starttime # use 2nd element because 1st is more often truncated
@@ -263,6 +265,7 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     diff_path = png_dir / f'{hyd.file_str}_flacwav_diff.png'
     plt.savefig(diff_path, dpi=300, bbox_inches='tight')
     plt.close()
+
 
 @flow
 def acoustic_flow_oneday(

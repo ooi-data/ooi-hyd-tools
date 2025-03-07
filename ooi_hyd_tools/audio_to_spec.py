@@ -8,6 +8,7 @@ from pbp import get_pbp_version
 from pbp.plotting import plot_dataset_summary
 from pathlib import Path
 from loguru import logger
+from prefect import task
 
 # TODO pbp gets angry if I don't pass these
 import boto3
@@ -34,6 +35,8 @@ HYDBB_COORDS = {
     "HYDBBA303": (45.81671, -129.75405),
 }
 
+
+@task
 def audio_to_spec(
         start_date, 
         file_type,
