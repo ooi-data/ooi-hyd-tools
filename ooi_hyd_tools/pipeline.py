@@ -7,7 +7,7 @@ from ooi_hyd_tools.utils import select_logger
 
 logger = select_logger()
 
-PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_2vcpu_16gb"
+PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_4vcpu_30gb"
 
 @click.command()
 @click.option(

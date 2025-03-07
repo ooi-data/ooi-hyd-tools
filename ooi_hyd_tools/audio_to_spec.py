@@ -16,7 +16,6 @@ from botocore.config import Config
 
 from ooi_hyd_tools.utils import select_logger
 
-logger = select_logger()
 
 # hydrophone specification
 # NOTE this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC 
@@ -46,7 +45,6 @@ def audio_to_spec(
         apply_cals=False,
     ):
     
-    logger = select_logger()
     # pbp takes dates as strings without slashes
     instrument = hyd_refdes[-9:]
     start_date = start_date.replace('/', '')
@@ -56,7 +54,9 @@ def audio_to_spec(
     gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals)
 
 
+@task
 def gen_metadata(start_date, file_type, instrument):
+    logger = select_logger()
 
     date_dir = f"{start_date[:4]}_{start_date[4:6]}_{start_date[6:]}"
 
@@ -85,6 +85,7 @@ def gen_metadata(start_date, file_type, instrument):
 
 
 def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False):
+    logger = select_logger()
     # set up directories
     download_dir = Path('./downloads')
     json_base_dir = Path('./metadata/json')
