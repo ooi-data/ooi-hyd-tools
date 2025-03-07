@@ -110,6 +110,8 @@ class HydrophoneDay:
         return data_url_list
 
     def read_and_repair_gaps(self, format):
+
+        print(Path.cwd())    
         if self.mseed_urls is None:
             return None
         else:
