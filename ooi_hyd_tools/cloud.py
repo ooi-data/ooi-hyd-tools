@@ -1,7 +1,6 @@
 import fsspec
 from datetime import datetime
 from pathlib import Path
-from loguru import logger
 from prefect import task
 
 from ooi_hyd_tools.utils import select_logger
