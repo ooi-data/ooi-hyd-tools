@@ -61,7 +61,8 @@ def gen_metadata(start_date, file_type, instrument):
     date_dir = f"{start_date[:4]}_{start_date[4:6]}_{start_date[6:]}"
 
     # Audio data input specifications
-    flac_uri = f'file:///Users/joeduprey/repos/ooi-hyd-tools/ooi_hyd_tools/data/{file_type}/{date_dir}/{instrument}'
+    flac_uri = f'file:///{str(Path.cwd())}/data/{file_type}/{date_dir}/{instrument}'
+    logger.warning(flac_uri)
     flac_prefix = instrument # prefix for the audio files
     start_date = start_date # start date for temporal metadata extraction (YYYYMMDD)
     json_base_dir = 'metadata/json' # location to store generated metadata in JSON format
