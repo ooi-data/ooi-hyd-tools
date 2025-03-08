@@ -23,7 +23,7 @@ dependencies = [
     "pydantic>2",
     "prefect>=2,<3",
     #"mbari-pbp @ git+ssh://git@github.com/jdduprey/pbp.git@ooi-qaqc",
-    "mbari-pbp",
+    "mbari-pbp @ git+ssh://git@github.com/mbari-org/pbp.git@main"
 ]
 
 [project.scripts]
