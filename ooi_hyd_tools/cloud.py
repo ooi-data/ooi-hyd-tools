@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from prefect import task
 
-from ooi_hyd_tools.utils import select_logger
+from ooi_hyd_tools.utils import select_logger, get_s3_kwargs
 
 OOI_BUCKET = "s3://ooi-acoustic-data"
 logger = select_logger()
@@ -21,7 +21,8 @@ def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
 
         return instrument in filename and str(year) in filename
 
-    s3_fs = fsspec.filesystem('s3')
+    fs_kwargs = get_s3_kwargs()
+    s3_fs = fsspec.filesystem('s3', **fs_kwargs)
 
     # Upload .nc files to hmb/YYYY/
     nc_files = local_dir.rglob("*.nc")
