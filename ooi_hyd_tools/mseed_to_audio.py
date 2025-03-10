@@ -200,11 +200,16 @@ def convert_mseed_to_audio(
         return None, None, None
     else:
         # make dirs
-        logger.info(f"Creating directories for flac and wav files")
+        logger.info(f"Creating directories for flac and wav files") #TODO make sure these relative paths still work
         date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-        flac_dir = Path(f'./ooi_hyd_tools/data/flac/{date_str}/{hyd.refdes[18:]}')
-        png_dir = Path(f'./ooi_hyd_tools/data/png/{date_str}/{hyd.refdes[18:]}')
-        wav_dir = Path(f'./ooi_hyd_tools/data/wav/{date_str}/{hyd.refdes[18:]}')
+        #flac_dir = Path(f'./ooi_hyd_tools/data/flac/{date_str}/{hyd.refdes[18:]}')
+        #png_dir = Path(f'./ooi_hyd_tools/data/png/{date_str}/{hyd.refdes[18:]}')
+        #wav_dir = Path(f'./ooi_hyd_tools/data/wav/{date_str}/{hyd.refdes[18:]}')
+        print("TODO printing and creating directory structure")
+        flac_dir = Path.cwd() / f'{date_str}/{hyd.refdes[18:]}'
+        png_dir = Path.cwd() / f'{date_str}/{hyd.refdes[18:]}'
+        wav_dir = Path.cwd() / f'{date_str}/{hyd.refdes[18:]}'
+
         flac_dir.mkdir(parents=True, exist_ok=True)
         png_dir.mkdir(parents=True, exist_ok=True)
         wav_dir.mkdir(parents=True, exist_ok=True)

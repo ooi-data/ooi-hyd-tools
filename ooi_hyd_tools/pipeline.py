@@ -104,7 +104,7 @@ def run_acoustic_pipeline(
     stages,
     parallel_in_cloud,
 ):
-    
+     
     if parallel_in_cloud:
 
         start_date = datetime.strptime(start_date, "%Y/%m/%d")
