@@ -109,7 +109,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False)
     hmb_gen.set_subset_to(FREQ_LIMS)
 
     if apply_cals: #TODO
-        logger.warning("CALLS NOT YET IMPLEMENTED")
+        logger.warning("CALS NOT YET IMPLEMENTED")
         #sensitivity_uri =  "./metadata/cals/NRS11_H5R6_sensitivity_hms5kHz_PLACEHOLDER.nc"
         #hmb_gen.set_sensitivity(-170) 
         #hmb_gen.set_sensitivity(sensitivity_uri)

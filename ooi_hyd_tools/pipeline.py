@@ -8,6 +8,7 @@ from ooi_hyd_tools.utils import select_logger
 logger = select_logger()
 
 PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_4vcpu_30gb"
+TIMEOUT = 20
 
 @click.command()
 @click.option(
@@ -129,7 +130,7 @@ def run_acoustic_pipeline(
                 name=PREFECT_DEPLOYMENT,
                 parameters=params,
                 flow_run_name=run_name,
-                timeout=5
+                timeout=TIMEOUT
             )
         else: 
             end_date = datetime.strptime(end_date, "%Y/%m/%d")
@@ -152,7 +153,7 @@ def run_acoustic_pipeline(
                 name=PREFECT_DEPLOYMENT,
                 parameters=params,
                 flow_run_name=run_name,
-                timeout=5
+                timeout=TIMEOUT
                 )
                 start_date += timedelta(days=1)
     
