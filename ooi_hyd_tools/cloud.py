@@ -5,8 +5,8 @@ from prefect import task
 
 from ooi_hyd_tools.utils import select_logger, get_s3_kwargs
 
-OOI_BUCKET = "s3://ooi-acoustic-data"
-logger = select_logger()
+OOI_DATA_BUCKET = "s3://ooi-acoustic-data"
+OOI_SPECTROGRAM_BUCKET = "s3://ooi-qaqc-prod"
 
 @task
 def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
@@ -28,7 +28,7 @@ def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
     nc_files = local_dir.rglob("*.nc")
     for fp in nc_files:
         if fp.is_file() and is_valid_file(fp):
-            s3_uri = f"{OOI_BUCKET}/hmb/{year}/{instrument}/{fp.name}"
+            s3_uri = f"{OOI_DATA_BUCKET}/hmb/{year}/{instrument}/{fp.name}"
             logger.info(f"Uploading {fp} to {s3_uri}")
             s3_fs.put(str(fp), s3_uri)
 
@@ -36,6 +36,6 @@ def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
     png_files = local_dir.glob("*.png")
     for fp in png_files:
         if fp.is_file() and is_valid_file(fp):
-            s3_uri = f"{OOI_BUCKET}/spectrograms/{year}/{instrument}/{fp.name}"
+            s3_uri = f"{OOI_SPECTROGRAM_BUCKET}/spectrograms/{year}/{instrument}/{fp.name}"
             logger.info(f"Uploading {fp} to {s3_uri}")
             s3_fs.put(str(fp), s3_uri)
