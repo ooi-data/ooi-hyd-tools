@@ -6,7 +6,7 @@ from prefect import task
 from ooi_hyd_tools.utils import select_logger, get_s3_kwargs
 
 OOI_DATA_BUCKET = "s3://ooi-acoustic-data"
-OOI_SPECTROGRAM_BUCKET = "s3://ooi-qaqc-prod"
+OOI_SPECTROGRAM_BUCKET = "s3://ooi-rca-qaqc-prod"
 
 @task
 def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
