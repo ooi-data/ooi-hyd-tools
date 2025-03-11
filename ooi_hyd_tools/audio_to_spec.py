@@ -22,6 +22,7 @@ from ooi_hyd_tools.utils import select_logger
 # this is in the works...
 VOLTAGE_MULTIPLIER = 3
 FREQ_LIMS = (10, 30000)   # subset frequency band for output HMB spectra, recording @ 64 kHz #TODO
+DB_RANGE = (20, 90) 
 
 # metadata files for output netCDF data products
 GLOBAL_ATTRS_YAML = './metadata/attributes/globalAttributes_placeholder.yaml'
@@ -122,10 +123,8 @@ def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False)
     hmb_gen.set_output_prefix(output_prefix)
 
     hmb_gen.set_print_downloading_lines(True)
-
-    # ----- JUST FOR INITIAL CONVENIENCE: ------ #TODO what settings should we put?
-    hmb_gen.set_retain_downloaded_files(True)
-    hmb_gen.set_assume_downloaded_files(True)
+    hmb_gen.set_retain_downloaded_files(True) 
+    hmb_gen.set_assume_downloaded_files(True) # useful for running locally
 
     error = hmb_gen.check_parameters()
     # A message is returned in case of any errors
@@ -134,7 +133,6 @@ def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False)
     
     # The resulting NetCDF file should have been saved under the output directory.
     result = hmb_gen.process_date(start_date)
-
     # sanity check
     logger.info(result.dataset)
 
@@ -146,7 +144,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False)
         lat_lon_for_solpos=HYDBB_COORDS[instrument],
         title=f'{instrument}, {HYDBB_COORDS[instrument][0]}°N, {HYDBB_COORDS[instrument][1]}°W', # TODO human readable title
         ylim=FREQ_LIMS,
-        cmlim=(20, 90), # TODO should be constant
+        cmlim=DB_RANGE,
         jpeg_filename=f'{str(output_dir)}/{instrument}_{start_date}.png',
         show=False,
     )
