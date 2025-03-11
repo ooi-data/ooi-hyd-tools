@@ -182,7 +182,7 @@ class HydrophoneDay:
                 print("total traces after concatenation: " + str(len(cs)), flush=True)
         return cs
 
-@task(max_retries=2, retry_delay=60)
+@task(retries=2, retry_delay_seconds=60)
 def convert_mseed_to_audio(
     hyd_refdes,
     date,
