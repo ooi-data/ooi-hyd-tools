@@ -8,7 +8,7 @@ from ooi_hyd_tools.utils import select_logger
 logger = select_logger()
 
 PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_4vcpu_30gb"
-TIMEOUT = 20
+TIMEOUT = 20 # if lowered, the OOI raw data server will be overloaded
 
 @click.command()
 @click.option(
