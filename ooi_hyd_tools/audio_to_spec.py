@@ -145,7 +145,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False)
     plot_dataset_summary(
         ds,
         lat_lon_for_solpos=HYDBB_COORDS[hyd_refdes],
-        title=f"{instrument}, {HYDBB_COORDS[hyd_refdes][0]}°N, {HYDBB_COORDS[hyd_refdes][1]}°W",  # TODO human readable title
+        title=f"{hyd_refdes}, {HYDBB_COORDS[hyd_refdes][0]}°N, {HYDBB_COORDS[hyd_refdes][1]}°W",  # TODO human readable title
         ylim=FREQ_LIMS,
         cmlim=DB_RANGE,
         jpeg_filename=f"{str(output_dir)}/{instrument}_{start_date}.png",
