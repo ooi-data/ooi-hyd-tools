@@ -20,21 +20,21 @@ from ooi_hyd_tools.utils import select_logger
 # hydrophone specification
 # NOTE this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC 
 # this is in the works...
-VOLTAGE_MULTIPLIER = 3
+VOLTAGE_MULTIPLIER = 3 # TODO confirm with Orest
 FREQ_LIMS = (10, 30000)   # subset frequency band for output HMB spectra, recording @ 64 kHz #TODO
 DB_RANGE = (20, 90) 
 
 # metadata files for output netCDF data products
-GLOBAL_ATTRS_YAML = './metadata/attributes/globalAttributes_placeholder.yaml'
-VARIABLE_ATTRS_YAML = './metadata/attributes/variableAttributes_placeholder.yaml'
+GLOBAL_ATTRS_YAML = './metadata/attributes/globalAttributes_placeholder.yaml' #TODO
+VARIABLE_ATTRS_YAML = './metadata/attributes/variableAttributes_placeholder.yaml' #TODO
 
 HYDBB_COORDS = {
-    "HYDBBA106": (44.63721, -124.30564),
-    "HYDBBA105": (44.36933, -124.95347),
-    "HYDBBA103": (44.51516, -125.3899),
-    "HYDBBA102": (44.51505, -125.39002),
-    "HYDBBA302": (45.81676, -129.75426),
-    "HYDBBA303": (45.81671, -129.75405),
+    "CE02SHBP-LJ01D-11-HYDBBA106": (44.63721, -124.30564),
+    "CE04OSBP-LJ01C-11-HYDBBA105": (44.36933, -124.95347),
+    "RS01SBPS-PC01A-08-HYDBBA103": (44.51516, -125.3899),
+    "RS01SLBS-LJ01A-09-HYDBBA102": (44.51505, -125.39002),
+    "RS03AXBS-LJ03A-09-HYDBBA302": (45.81676, -129.75426),
+    "RS03AXPS-PC03A-08-HYDBBA303": (45.81671, -129.75405),
 }
 
 
@@ -70,7 +70,7 @@ def gen_metadata(start_date, file_type, instrument):
 
     # Convert the start and end dates to datetime objects
     start = datetime.strptime(start_date, "%Y%m%d")
-    end = datetime.strptime(start_date, "%Y%m%d") #TODO for now we are just running one day at a time
+    end = datetime.strptime(start_date, "%Y%m%d") # we can run multipl days on .nc files if needed
 
     # Create the metadata generator
     meta_gen = IcListenMetadataGenerator(
