@@ -15,8 +15,6 @@ from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
 from ooi_hyd_tools.utils import select_logger
 
-logger = select_logger()
-
 
 """
 This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
@@ -141,6 +139,8 @@ class HydrophoneDay:
         return cs
 
     def _deal_with_gaps_and_overlaps(self, url, format):
+        logger = select_logger()
+
         if format not in ["PCM_32", "PCM_24", "FLOAT"]:
             raise ValueError("Invalid wav data subtype. Please specify 'PCM_32' or 'FLOAT'")
         # first read in mseed
@@ -198,6 +198,7 @@ def convert_mseed_to_audio(
     normalize_traces,
     write_wav,
 ):
+    logger = select_logger()
     hyd = HydrophoneDay(hyd_refdes, date, fudge_factor)
 
     hyd.read_and_repair_gaps(format=format)
@@ -253,6 +254,8 @@ def convert_mseed_to_audio(
 
 @task
 def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
+    logger = select_logger()
+
     logger.info("Some flac/wav comparisions:")
     example_datetime = hyd.clean_list[1][
         0
@@ -307,6 +310,8 @@ def acoustic_flow_oneday(
     s3_sync,
     stages,
 ):
+    logger = select_logger()
+
     if stages == "audio" or stages == "all":
         hyd, png_dir, date_str = convert_mseed_to_audio(
             hyd_refdes=hyd_refdes,
