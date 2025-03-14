@@ -47,18 +47,18 @@ def audio_to_spec(
     apply_cals=False,
 ):
     # pbp takes dates as strings without slashes
-    instrument = hyd_refdes[-9:]
     start_date = start_date.replace("/", "")
 
-    gen_metadata(start_date, file_type, instrument)
+    gen_metadata(start_date, file_type, hyd_refdes)
 
-    gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals)
+    gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals)
 
 
 @task
-def gen_metadata(start_date, file_type, instrument):
+def gen_metadata(start_date, file_type, hyd_refdes):
     logger = select_logger()
 
+    instrument = hyd_refdes[-9:]
     date_dir = f"{start_date[:4]}_{start_date[4:6]}_{start_date[6:]}"
 
     # Audio data input specifications
@@ -88,8 +88,9 @@ def gen_metadata(start_date, file_type, instrument):
     meta_gen.run()
 
 
-def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False):
+def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False):
     logger = select_logger()
+    instrument = hyd_refdes[-9:]
     # set up directories
     download_dir = Path("./downloads")
     json_base_dir = Path("./metadata/json")
@@ -143,8 +144,8 @@ def gen_hybrid_millidecade_spectrogram(start_date, instrument, apply_cals=False)
 
     plot_dataset_summary(
         ds,
-        lat_lon_for_solpos=HYDBB_COORDS[instrument],
-        title=f"{instrument}, {HYDBB_COORDS[instrument][0]}°N, {HYDBB_COORDS[instrument][1]}°W",  # TODO human readable title
+        lat_lon_for_solpos=HYDBB_COORDS[hyd_refdes],
+        title=f"{instrument}, {HYDBB_COORDS[hyd_refdes][0]}°N, {HYDBB_COORDS[hyd_refdes][1]}°W",  # TODO human readable title
         ylim=FREQ_LIMS,
         cmlim=DB_RANGE,
         jpeg_filename=f"{str(output_dir)}/{instrument}_{start_date}.png",
