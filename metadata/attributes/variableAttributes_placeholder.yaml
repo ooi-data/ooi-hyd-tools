@@ -18,9 +18,9 @@ psd:
   long_name: Single-sided mean-square sound pressure spectral density (dB re 1 µPa^2/Hz)
   units: dB
   coverage_content_type: physicalMeasurement
-  comment: >-
+  comment:
     Computation followed ISO 18405 3.1.3.13.
 sensitivity:
-  long_name: Hydrophone sensitivity (dB re 1 volt / µPa)
+  long_name: Hydrophone sensitivity (dB re 1 volt / µPa) #TODO ask SME about cals and cal units
   units: dB
   coverage_content_type: physicalMeasurement
