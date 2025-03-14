@@ -196,16 +196,13 @@ def convert_mseed_to_audio(
 
     hyd.read_and_repair_gaps(format=format)
 
-    if hyd.clean_list is None: #TODO cleaner solution
+    if hyd.clean_list is None: # retun None if no data available on that day
         return None, None, None
     else:
         # make dirs
-        logger.info(f"Creating directories for flac and wav files") #TODO make sure these relative paths still work
+        logger.info(f"Creating directories for flac and wav files")
         date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-        #flac_dir = Path(f'./ooi_hyd_tools/data/flac/{date_str}/{hyd.refdes[18:]}')
-        #png_dir = Path(f'./ooi_hyd_tools/data/png/{date_str}/{hyd.refdes[18:]}')
-        #wav_dir = Path(f'./ooi_hyd_tools/data/wav/{date_str}/{hyd.refdes[18:]}')
-        print("TODO printing and creating directory structure")
+        print("Creating data directories")
         flac_dir = Path.cwd() / f'data/flac/{date_str}/{hyd.refdes[18:]}'
         png_dir = Path.cwd() / f'data/png/{date_str}/{hyd.refdes[18:]}'
         wav_dir = Path.cwd() / f'data/wav/{date_str}/{hyd.refdes[18:]}'
