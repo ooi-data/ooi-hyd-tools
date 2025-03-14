@@ -63,7 +63,9 @@ def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
         # Disable progress bar
         is_disabled = not verbose
         for future in tqdm(
-            concurrent.futures.as_completed(future_to_url), total=len(iterator), disable=is_disabled
+            concurrent.futures.as_completed(future_to_url),
+            total=len(iterator),
+            disable=is_disabled,
         ):
             data = future.result()
             results.append(data)
@@ -71,7 +73,6 @@ def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
 
 
 class HydrophoneDay:
-
     def __init__(
         self,
         refdes,
@@ -83,17 +84,16 @@ class HydrophoneDay:
         self.date = datetime.strptime(str_date, "%Y/%m/%d")
         self.fudge_factor = fudge_factor
         self.mseed_urls = self.get_mseed_urls(str_date, refdes)
-        self.clean_list=clean_list
+        self.clean_list = clean_list
         self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
 
     def get_mseed_urls(self, day_str, refdes):
-        
         base_url = "https://rawdata.oceanobservatories.org/files"
         mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day_str}/"
         FS = fsspec.filesystem("http")
         print(mainurl)
         print(Path.cwd())
-    
+
         try:
             data_url_list = sorted(
                 f["name"]
@@ -103,42 +103,42 @@ class HydrophoneDay:
         except Exception as e:
             print("Client response: ", str(e))
             return None
-    
+
         if not data_url_list:
             print("No Data Available for Specified Time")
             return None
-    
+
         return data_url_list
 
     def read_and_repair_gaps(self, format):
-
         if self.mseed_urls is None:
             return None
         else:
             self.clean_list = _map_concurrency(
-                func=self._deal_with_gaps_and_overlaps, 
-                args=format, 
-                iterator=self.mseed_urls, verbose=False
+                func=self._deal_with_gaps_and_overlaps,
+                args=format,
+                iterator=self.mseed_urls,
+                verbose=False,
             )
-        
-            
+
     def _merge_by_timestamps(self, st):
         cs = st.copy()
-        
+
         data = []
         for tr in cs:
             data.append(tr.data)
         data_cat = np.concatenate(data)
-    
+
         stats = dict(cs[0].stats)
         stats["starttime"] = st[0].stats["starttime"]
-        stats["endtime"] = st[-1].stats["endtime"] # TODO we may want to set the endtime based on n datapoints and not just the endtime of the last trace
+        stats["endtime"] = st[-1].stats[
+            "endtime"
+        ]  # TODO we may want to set the endtime based on n datapoints and not just the endtime of the last trace
         stats["npts"] = len(data_cat)
-    
+
         cs = obs.Stream(traces=obs.Trace(data_cat, header=stats))
-    
+
         return cs
-        
 
     def _deal_with_gaps_and_overlaps(self, url, format):
         if format not in ["PCM_32", "PCM_24", "FLOAT"]:
@@ -148,39 +148,45 @@ class HydrophoneDay:
             st = obs.read(url, apply_calib=False, dtype=np.int32)
         if format == "FLOAT":
             st = obs.read(url, apply_calib=False, dtype=np.float64)
-        
-        
+
         trace_id = st[0].stats["starttime"]
         print("total traces before concatenation: " + str(len(st)), flush=True)
         # if 19.2 samples +- 640 then concat
         samples = 0
         for trace in st:
             samples += len(trace)
-            
-        if 19199360 <= samples <= 19200640: # CASE A: just jitter, no true gaps
+
+        if 19199360 <= samples <= 19200640:  # CASE A: just jitter, no true gaps
             print(f"There are {samples} samples in this stream, Simply concatenating")
             cs = self._merge_by_timestamps(st)
             print("total traces after concatenation: " + str(len(cs)))
         else:
-            print(f"{trace_id}: there are a unexpected number of samples in this file: {samples} Checking for large gaps:")
+            print(
+                f"{trace_id}: there are a unexpected number of samples in this file: {samples} Checking for large gaps:"
+            )
             gaps = st.get_gaps()
             st_contains_large_gap = False
             # loop checks for large gaps
             for gap in gaps:
-                if abs(gap[6]) > self.fudge_factor: # the gaps 6th element is the gap length
+                if abs(gap[6]) > self.fudge_factor:  # the gaps 6th element is the gap length
                     st_contains_large_gap = True
                     break
-            
-            if st_contains_large_gap: # CASE B: - edge case? - LARGE GAPS WILL RAISE ERROR
-                logger.warning(f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods")
+
+            if st_contains_large_gap:  # CASE B: - edge case? - LARGE GAPS WILL RAISE ERROR
+                logger.warning(
+                    f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods"
+                )
                 return None
-                #raise ValueError(f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods")
+                # raise ValueError(f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods")
                 # TODO if this is deployed we want to make multiple files seperated by gaps > fudge factor
-            else: # CASE C: shortened mseed file before divert with no large gaps
-                print(f"{trace_id}: This file is short but only contains jitter. Simply concatenating")
+            else:  # CASE C: shortened mseed file before divert with no large gaps
+                print(
+                    f"{trace_id}: This file is short but only contains jitter. Simply concatenating"
+                )
                 cs = self._merge_by_timestamps(st)
                 print("total traces after concatenation: " + str(len(cs)), flush=True)
         return cs
+
 
 @task(retries=2, retry_delay_seconds=60)
 def convert_mseed_to_audio(
@@ -196,46 +202,51 @@ def convert_mseed_to_audio(
 
     hyd.read_and_repair_gaps(format=format)
 
-    if hyd.clean_list is None: # retun None if no data available on that day
+    if hyd.clean_list is None:  # retun None if no data available on that day
         return None, None, None
     else:
         # make dirs
-        logger.info(f"Creating directories for flac and wav files")
+        logger.info("Creating directories for flac and wav files")
         date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
         print("Creating data directories")
-        flac_dir = Path.cwd() / f'data/flac/{date_str}/{hyd.refdes[18:]}'
-        png_dir = Path.cwd() / f'data/png/{date_str}/{hyd.refdes[18:]}'
-        wav_dir = Path.cwd() / f'data/wav/{date_str}/{hyd.refdes[18:]}'
+        flac_dir = Path.cwd() / f"data/flac/{date_str}/{hyd.refdes[18:]}"
+        png_dir = Path.cwd() / f"data/png/{date_str}/{hyd.refdes[18:]}"
+        wav_dir = Path.cwd() / f"data/wav/{date_str}/{hyd.refdes[18:]}"
 
         flac_dir.mkdir(parents=True, exist_ok=True)
         png_dir.mkdir(parents=True, exist_ok=True)
         wav_dir.mkdir(parents=True, exist_ok=True)
 
         for st in hyd.clean_list:
-            if st is not None: # TODO as of now we are throwing out 5 minute segments with gaps > fudge factor
-                start_time = str(st[0].stats['starttime'])
-                end_time = str(st[0].stats['endtime'])
+            if (
+                st is not None
+            ):  # TODO as of now we are throwing out 5 minute segments with gaps > fudge factor
+                start_time = str(st[0].stats["starttime"])
                 dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
-                
-                new_format = dt.strftime("%Y%m%d_%H%M%S")#dt.strftime("%y%m%d%H%M%S%z")
 
-                if format == 'FLOAT':
-                    st[0].data = st[0].data.astype(np.float64) 
-                    
+                new_format = dt.strftime("%Y%m%d_%H%M%S")  # dt.strftime("%y%m%d%H%M%S%z")
+
+                if format == "FLOAT":
+                    st[0].data = st[0].data.astype(np.float64)
+
                 if normalize_traces:
                     st = st.normalize()
-                    
+
                 print(type(st[0].data[0]))
                 print(st[0].data[:5])
 
                 flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
                 wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
 
-                print(str(flac_path)) 
-                sf.write(flac_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
+                print(str(flac_path))
+                sf.write(
+                    flac_path, st[0].data, sr, subtype=format
+                )  # use sf package to write instead of obspy
                 if write_wav:
                     print(str(wav_path))
-                    sf.write(wav_path, st[0].data, sr, subtype=format) # use sf package to write instead of obspy
+                    sf.write(
+                        wav_path, st[0].data, sr, subtype=format
+                    )  # use sf package to write instead of obspy
 
         return hyd, png_dir, date_str
 
@@ -243,19 +254,27 @@ def convert_mseed_to_audio(
 @task
 def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     logger.info("Some flac/wav comparisions:")
-    example_datetime = hyd.clean_list[1][0].stats.starttime # use 2nd element because 1st is more often truncated
+    example_datetime = hyd.clean_list[1][
+        0
+    ].stats.starttime  # use 2nd element because 1st is more often truncated
     example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
     logger.info(f"Using {example_time} for logging and sanity checking")
 
-    if format == 'FLOAT':
+    if format == "FLOAT":
         dtype = "float64"
     else:
         dtype = "int32"
 
-    wav, _ = sf.read(f'data/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav', dtype=dtype)
+    wav, _ = sf.read(
+        f"data/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav",
+        dtype=dtype,
+    )
     logger.info(f"wav data sanity check {wav}")
 
-    flac, _ = sf.read(f'data/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac', dtype=dtype)
+    flac, _ = sf.read(
+        f"data/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac",
+        dtype=dtype,
+    )
     logger.info(f"flac data sanity check {flac}")
 
     wavflac_ratio = wav / flac
@@ -265,30 +284,29 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     plt.plot(wav[:200], linewidth=0.5)
     plt.plot(flac[:200], linewidth=0.5)
 
-    compare_path = png_dir / f'{hyd.file_str}_flacwav_compare.png'
-    plt.savefig(compare_path, dpi=300, bbox_inches='tight')
-    plt.close()  
+    compare_path = png_dir / f"{hyd.file_str}_flacwav_compare.png"
+    plt.savefig(compare_path, dpi=300, bbox_inches="tight")
+    plt.close()
 
     plt.plot(wav[:200] - flac[:200])
-    diff_path = png_dir / f'{hyd.file_str}_flacwav_diff.png'
-    plt.savefig(diff_path, dpi=300, bbox_inches='tight')
+    diff_path = png_dir / f"{hyd.file_str}_flacwav_diff.png"
+    plt.savefig(diff_path, dpi=300, bbox_inches="tight")
     plt.close()
 
 
 @flow(log_prints=True)
 def acoustic_flow_oneday(
-    hyd_refdes, 
-    date, 
-    sr, 
+    hyd_refdes,
+    date,
+    sr,
     format,
     normalize_traces,
     fudge_factor,
     write_wav,
-    apply_cals, 
-    s3_sync, 
+    apply_cals,
+    s3_sync,
     stages,
 ):
-
     if stages == "audio" or stages == "all":
         hyd, png_dir, date_str = convert_mseed_to_audio(
             hyd_refdes=hyd_refdes,
@@ -311,10 +329,9 @@ def acoustic_flow_oneday(
 
     if stages == "viz" or stages == "all":
         audio_to_spec(date, "flac", hyd_refdes, apply_cals)
-    
+
     if s3_sync:
         sync_png_nc_to_s3(hyd_refdes, date)
-
 
 
 if __name__ == "__main__":

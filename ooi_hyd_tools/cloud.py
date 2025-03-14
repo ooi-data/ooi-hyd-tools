@@ -8,6 +8,7 @@ from ooi_hyd_tools.utils import select_logger, get_s3_kwargs
 OOI_DATA_BUCKET = "s3://ooi-acoustic-data"
 OOI_SPECTROGRAM_BUCKET = "s3://ooi-rca-qaqc-prod"
 
+
 @task
 def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
     """sync .nc and .png files to S3 based on the given date and refdes."""
@@ -16,13 +17,12 @@ def sync_png_nc_to_s3(hyd_refdes, date, local_dir=Path("./output")):
     year = datetime.strptime(date, "%Y/%m/%d").year
 
     def is_valid_file(fp: Path):
-
         filename = fp.name
 
         return instrument in filename and str(year) in filename
 
     fs_kwargs = get_s3_kwargs()
-    s3_fs = fsspec.filesystem('s3', **fs_kwargs)
+    s3_fs = fsspec.filesystem("s3", **fs_kwargs)
 
     # Upload .nc files to hmb/YYYY/
     nc_files = local_dir.rglob("*.nc")

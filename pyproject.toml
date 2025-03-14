@@ -35,3 +35,7 @@ packages = ["ooi_hyd_tools"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.ruff]
+line-length = 95
+exclude = ["notebooks"]
