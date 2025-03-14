@@ -18,8 +18,9 @@ from ooi_hyd_tools.utils import select_logger
 
 """
 This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
-into 5 minute wav and then flac files using obspy and soundfile. Wav file names are written to "./data/wav/YYYY_MM_DD".
-Files are named in the datetime format "YYMMDDHHMMSS"
+into 5 minute flac files using obspy and soundfile. Flac file names are written to 
+"./data/flac/YYYY_MM_DD/INSTRUMENT".
+Files are named in the datetime format "INSTRUMENT_YYMMDDHHMMSS"
 The user can set the following processing parameters: 
 
 HYD_REFDES
@@ -36,15 +37,9 @@ FORMAT
      but some media players cannot import in this format. See `sf.available_subtypes('WAV')`
 NORMALIZE_TRACES
     Option to normalize signal by mean of each 5 minute trace. If normalized float32 data type is needed.
-"""
 
-# example params
-# HYD_REFDES = "CE04OSBP-LJ01C-11-HYDBBA105"
-# DATE = "2025/01/16"
-# SR = 64000
-# FORMAT = "FLOAT" #"PCM_24"#'PCM_32'  #audacity uses normalized float
-# NORMALIZE_TRACES = False # True if you want to use float32 for audacity
-# FUDGE_FACTOR = 0.02
+NOTE See cli in pipeline.py for additional help and context.
+"""
 
 
 def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
