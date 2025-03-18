@@ -202,9 +202,8 @@ def convert_mseed_to_audio(
         return None, None, None
     else:
         # make dirs
-        logger.info("Creating directories for flac and wav files")
+        logger.info("Creating data directories")
         date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-        print("Creating data directories")
         flac_dir = Path.cwd() / f"data/flac/{date_str}/{hyd.refdes[18:]}"
         png_dir = Path.cwd() / f"data/png/{date_str}/{hyd.refdes[18:]}"
         wav_dir = Path.cwd() / f"data/wav/{date_str}/{hyd.refdes[18:]}"
