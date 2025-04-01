@@ -95,7 +95,7 @@ def find_cal_file(refdes, date_str):
     node = refdes[:8]
     current_utc_datetime = datetime.now(timezone.utc)
 
-    date = datetime.strptime(date_str, "%Y/%m/%d").replace(tzinfo=timezone.utc)
+    date = datetime.strptime(date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
 
     # load deployments from OOI asset management
     df = pl.read_csv(f"https://raw.githubusercontent.com/oceanobservatories/asset-management/refs/heads/master/deployment/{node}_Deploy.csv")
