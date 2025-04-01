@@ -119,7 +119,7 @@ def find_cal_file(refdes, date_str):
 
     print(f"{date_str} falls under deployment < {deployment_number[0]} > for {refdes}")
     print(f"cal file at {cal_file_path_str}")
-    return cal_file_path
+    return cal_file_path_str # pbp wants a string not a path
 
 def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False):
     logger = select_logger()
