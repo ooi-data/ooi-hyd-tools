@@ -1,6 +1,8 @@
 from pbp.meta_gen.gen_iclisten import IcListenMetadataGenerator
-from datetime import datetime
+from datetime import datetime, timezone
 import xarray as xr
+import polars as pl
+import matplotlib.pyplot as plt
 
 from pbp.simpleapi import HmbGen
 from pbp.plotting import plot_dataset_summary
@@ -15,10 +17,11 @@ from botocore.config import Config
 from ooi_hyd_tools.utils import select_logger
 
 
+plt.switch_backend("Agg") # use non-interactive backend
 # hydrophone specification
 # NOTE this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC
 # this is in the works...
-VOLTAGE_MULTIPLIER = 3  # TODO confirm with Orest
+VOLTAGE_MULTIPLIER = 1  # TODO confirm with Orest
 FREQ_LIMS = (
     10,
     30000,
@@ -87,6 +90,30 @@ def gen_metadata(start_date, file_type, hyd_refdes):
 
     meta_gen.run()
 
+@task
+def find_cal_file(refdes, date_str):
+    node = refdes[:8]
+    current_utc_datetime = datetime.now(timezone.utc)
+
+    date = datetime.strptime(date_str, "%Y/%m/%d").replace(tzinfo=timezone.utc)
+
+    # load deployments from OOI asset management
+    df = pl.read_csv(f"https://raw.githubusercontent.com/oceanobservatories/asset-management/refs/heads/master/deployment/{node}_Deploy.csv")
+
+    df = df.filter(pl.col("Reference Designator") == refdes)
+
+    df = df.with_columns(pl.col("startDateTime").str.strptime(pl.Datetime).dt.replace_time_zone("UTC").alias("startDateTime"))
+    df = df.with_columns(pl.col("stopDateTime").str.strptime(pl.Datetime).dt.replace_time_zone("UTC").alias("stopDateTime"))
+    df = df.with_columns(pl.col("stopDateTime").fill_null(current_utc_datetime).alias("stopDateTime"))
+
+    deploy_df = df.filter((pl.col("startDateTime") < date) & (pl.col("stopDateTime") > date))
+    deployment_number = deploy_df["deploymentNumber"]
+
+    cal_file_path = f"./metadata/rca_correction_cals/{refdes}_{str(deployment_number[0])}.nc"
+
+    print(f"{date_str} falls under deployment < {deployment_number[0]} > for {refdes}")
+    print(f"cal file at {cal_file_path}")
+    return cal_file_path
 
 def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False):
     logger = select_logger()
@@ -112,10 +139,10 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False)
     hmb_gen.set_subset_to(FREQ_LIMS)
 
     if apply_cals:  # TODO
-        logger.warning("CALS NOT YET IMPLEMENTED")
-        # sensitivity_uri =  "./metadata/cals/NRS11_H5R6_sensitivity_hms5kHz_PLACEHOLDER.nc"
+        logger.warning("CALS ARE A EXPERIMENTAL FEATURE")
+        sensitivity_uri = find_cal_file(hyd_refdes, start_date)
         # hmb_gen.set_sensitivity(-170)
-        # hmb_gen.set_sensitivity(sensitivity_uri)
+        hmb_gen.set_sensitivity(sensitivity_uri)
 
     config = Config(signature_version=botocore.UNSIGNED)
     s3_client = boto3.client("s3", config=config)
