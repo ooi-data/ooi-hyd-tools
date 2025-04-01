@@ -92,6 +92,8 @@ def gen_metadata(start_date, file_type, hyd_refdes):
 
 @task
 def find_cal_file(refdes, date_str):
+    logger = select_logger()
+
     node = refdes[:8]
     current_utc_datetime = datetime.now(timezone.utc)
 
@@ -109,10 +111,14 @@ def find_cal_file(refdes, date_str):
     deploy_df = df.filter((pl.col("startDateTime") < date) & (pl.col("stopDateTime") > date))
     deployment_number = deploy_df["deploymentNumber"]
 
-    cal_file_path = f"./metadata/rca_correction_cals/{refdes}_{str(deployment_number[0])}.nc"
+    cal_file_path_str = f"./metadata/rca_correction_cals/{refdes}_{str(deployment_number[0])}.nc"
+    cal_file_path = Path(cal_file_path_str)
+
+    if not cal_file_path.exists():
+        raise FileNotFoundError(f"No calibration file found for {date_str}")
 
     print(f"{date_str} falls under deployment < {deployment_number[0]} > for {refdes}")
-    print(f"cal file at {cal_file_path}")
+    print(f"cal file at {cal_file_path_str}")
     return cal_file_path
 
 def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False):
