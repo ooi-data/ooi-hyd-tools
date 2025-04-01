@@ -44,10 +44,9 @@ NOTE See cli in pipeline.py for additional help and context.
 
 def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
     # automatically set max_workers to 2x(available cores)
-    logger = select_logger()
     if max_workers == -1:
         max_workers = 2 * mp.cpu_count()
-        logger.info(f"Max workers: {max_workers}")
+        print(f"Max workers: {max_workers}")
 
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -134,7 +133,6 @@ class HydrophoneDay:
         return cs
 
     def _deal_with_gaps_and_overlaps(self, url, format):
-        logger = select_logger()
 
         if format not in ["PCM_32", "PCM_24", "FLOAT"]:
             raise ValueError("Invalid wav data subtype. Please specify 'PCM_32' or 'FLOAT'")
@@ -168,7 +166,7 @@ class HydrophoneDay:
                     break
 
             if st_contains_large_gap:  # CASE B: - edge case? - LARGE GAPS WILL RAISE ERROR
-                logger.warning(
+                print(
                     f"{trace_id}: This file contains large gaps - {gap}. Cannot repair with currently implimented methods"
                 )
                 return None
