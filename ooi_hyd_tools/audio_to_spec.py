@@ -26,7 +26,7 @@ FREQ_LIMS = (
     10,
     30000,
 )  # subset frequency band for output HMB spectra, recording @ 64 kHz #TODO
-DB_RANGE = (20, 90)
+DB_RANGE = (40, 115)
 
 # metadata files for output netCDF data products
 GLOBAL_ATTRS_YAML = "./metadata/attributes/globalAttributes_placeholder.yaml"  # TODO
