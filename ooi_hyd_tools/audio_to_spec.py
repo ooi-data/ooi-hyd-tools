@@ -19,9 +19,13 @@ from ooi_hyd_tools.utils import select_logger
 
 plt.switch_backend("Agg")  # use non-interactive backend
 # hydrophone specification
-# NOTE this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC
+# TODO this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC
 # this is in the works...
 VOLTAGE_MULTIPLIER = 1  # TODO confirm with Orest
+# NOTE OOI broadband hydrophone output is 24-bit ADC with maximum 3 volts.
+# So, there are 8388608 / 3 = 2796202 counts per volt which is equivalent
+# to 128.9 dB (=20log10(2796202)). This offset is applied to the cal files in rca_correction_cals
+# so here we use a voltage multiplier of 1.
 FREQ_LIMS = (
     10,
     30000,

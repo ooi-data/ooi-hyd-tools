@@ -21,6 +21,11 @@ psd:
   comment: >-
     Computation followed ISO 18405 3.1.3.13.
 sensitivity:
-  long_name: Hydrophone sensitivity (dB re 1 volt / µPa) #TODO ask SME about cals and cal units
+  long_name: Hydrophone sensitivity (dB re 1 volt / µPa) with OOI broadband offset applied (see comment)
   units: dB
   coverage_content_type: physicalMeasurement
+  comment: >-
+    IMPORTANT: OOI broadband hydrophone output is 24-bit ADC with maximum 3 volts.
+    So, there are 8388608 / 3 = 2796202 counts per volt which is equivalent
+    to 128.9 dB (=20log10(2796202)). This offset is applied (added) to the sensitivity.
+    See 03_cal_to_nc_draft.ipynb for implimentation and details.
