@@ -5,6 +5,7 @@ __pycache__/
 
 # Ignore certain data dirs in pbp dir structure
 ooi_hyd_tools/data/
+/data/
 output/
 metadata/json/
 downloads/
