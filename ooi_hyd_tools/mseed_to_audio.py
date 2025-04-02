@@ -133,7 +133,6 @@ class HydrophoneDay:
         return cs
 
     def _deal_with_gaps_and_overlaps(self, url, format):
-
         if format not in ["PCM_32", "PCM_24", "FLOAT"]:
             raise ValueError("Invalid wav data subtype. Please specify 'PCM_32' or 'FLOAT'")
         # first read in mseed

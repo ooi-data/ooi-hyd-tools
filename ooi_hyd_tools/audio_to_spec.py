@@ -17,7 +17,7 @@ from botocore.config import Config
 from ooi_hyd_tools.utils import select_logger
 
 
-plt.switch_backend("Agg") # use non-interactive backend
+plt.switch_backend("Agg")  # use non-interactive backend
 # hydrophone specification
 # NOTE this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC
 # this is in the works...
@@ -93,25 +93,40 @@ def gen_metadata(start_date, file_type, hyd_refdes):
 
 @task
 def find_cal_file(refdes, date_str):
-
     node = refdes[:8]
     current_utc_datetime = datetime.now(timezone.utc)
 
     date = datetime.strptime(date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
 
     # load deployments from OOI asset management
-    df = pl.read_csv(f"https://raw.githubusercontent.com/oceanobservatories/asset-management/refs/heads/master/deployment/{node}_Deploy.csv")
+    df = pl.read_csv(
+        f"https://raw.githubusercontent.com/oceanobservatories/asset-management/refs/heads/master/deployment/{node}_Deploy.csv"
+    )
 
     df = df.filter(pl.col("Reference Designator") == refdes)
 
-    df = df.with_columns(pl.col("startDateTime").str.strptime(pl.Datetime).dt.replace_time_zone("UTC").alias("startDateTime"))
-    df = df.with_columns(pl.col("stopDateTime").str.strptime(pl.Datetime).dt.replace_time_zone("UTC").alias("stopDateTime"))
-    df = df.with_columns(pl.col("stopDateTime").fill_null(current_utc_datetime).alias("stopDateTime"))
+    df = df.with_columns(
+        pl.col("startDateTime")
+        .str.strptime(pl.Datetime)
+        .dt.replace_time_zone("UTC")
+        .alias("startDateTime")
+    )
+    df = df.with_columns(
+        pl.col("stopDateTime")
+        .str.strptime(pl.Datetime)
+        .dt.replace_time_zone("UTC")
+        .alias("stopDateTime")
+    )
+    df = df.with_columns(
+        pl.col("stopDateTime").fill_null(current_utc_datetime).alias("stopDateTime")
+    )
 
     deploy_df = df.filter((pl.col("startDateTime") < date) & (pl.col("stopDateTime") > date))
     deployment_number = deploy_df["deploymentNumber"]
 
-    cal_file_path_str = f"./metadata/rca_correction_cals/{refdes}_{str(deployment_number[0])}.nc"
+    cal_file_path_str = (
+        f"./metadata/rca_correction_cals/{refdes}_{str(deployment_number[0])}.nc"
+    )
     cal_file_path = Path(cal_file_path_str)
 
     if not cal_file_path.exists():
@@ -119,7 +134,7 @@ def find_cal_file(refdes, date_str):
 
     print(f"{date_str} falls under deployment < {deployment_number[0]} > for {refdes}")
     print(f"cal file at {cal_file_path_str}")
-    return cal_file_path_str # pbp wants a string not a path
+    return cal_file_path_str  # pbp wants a string not a path
 
 
 def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False):
