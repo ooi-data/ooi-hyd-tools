@@ -2,7 +2,7 @@
 .ipynb_checkpoints
 __pycache__/
 .vscode/
-
+.ruff_cache/
 # Ignore certain data dirs in pbp dir structure
 ooi_hyd_tools/data/
 /data/
