@@ -33,8 +33,8 @@ FREQ_LIMS = (
 DB_RANGE = (45, 120)
 
 # metadata files for output netCDF data products
-GLOBAL_ATTRS_YAML = "./metadata/attributes/globalAttributes_placeholder.yaml"  # TODO
-VARIABLE_ATTRS_YAML = "./metadata/attributes/variableAttributes_placeholder.yaml"  # TODO
+GLOBAL_ATTRS_YAML = "./metadata/attributes/globalAttributes.yaml"  # TODO
+VARIABLE_ATTRS_YAML = "./metadata/attributes/variableAttributes.yaml"  # TODO
 
 HYDBB_COORDS = {
     "CE02SHBP-LJ01D-11-HYDBBA106": (44.63721, -124.30564),

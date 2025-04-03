@@ -1,0 +1,47 @@
+---
+title: >-
+     Hybrid Millidecade Band Sound Pressure Levels Computed at 1 Minute Resolution from Oceanic Passive Acoustic Monitoring Recordings at the Ocean Observatiories Initiative Regional Cabeled Array. (Funded by the National Science Foundation and Operated by the University of Washington)
+Summary: >- 
+    To understand natural and anthropogenic sound in the ocean, and to compare underwater soundscapes globally, standard methods of analysis must be applied to passive acoustic monitoring (PAM) data. Methods that balance constrained volume and adequate resolution of acoustic spectra have recently been published (Martin et al., 2021a,b). A community effort supported by NOAA, BOEM, U.S. Navy, and ONR was initiated to apply these methods to PAM datasets from around the world. This record represents the hybrid millidecade band (HMB) spectra of sound levels derived from calibrated PAM data.
+Conventions: COARDS, CF-1.6, ACDD-1.3
+keywords: >-
+  oceans, ocean acoustics, ambient noise, intensity, marine environment monitoring,
+  marine habitat, sound_intensity_level_in_water, soundscapes
+keywords_vocabulary: GCMD Science Keywords
+history: >- 
+  Original hybrid millidecade spectra were produced by Joe Duprey (UW OOI-RCA) following workflow specified by MBARI Soundscape Team
+source: >-
+  Data analysis was performed using Python Passive Acoustic Monitoring (PyPAM) software, version {{PyPAM_version}}, to produce hybrid millidecade band (HMB) spectra of sound 
+  levels from oceanic audio recordings.  Processing followed the methods defined in Martin et al. (2021a,b), and results were validated by comparison with results produced 
+  using the MATLAB code provided as supplemental material in Martin et al. (2021b).  Power spectral density (PSD) levels were computed from 1-minute segments of audio data. 
+  Input flac audio data as read (int24 data) were used to compute PSD. An offset of 128.9 dB was applied to the hydrophone sensitivity data to account for the 24-bit ADC and 
+  maximum of 3 volts output from OOI broadband icListen hydrophones. By applying fast Fourier transform (FFT) with length equal to the sample rate, using Hann window and 50% overlap, PSD estimates (V^2/Hz) were computed with a 
+  frequency resolution of 1 Hz and a temporal resolution of 1 second. The 119 PSD estimates from each 1-minute segment were averaged, and the average spectrum for each 
+  minute was further processed to an HMB spectrum. Each 1-minute spectrum (dB re V^2/Hz) was calibrated using the frequency-dependent hydrophone sensitivity (dB re V/µPa) 
+  data provided by the hydrophone manufacturer to obtain calibrated PSD (dB re 1 µPa^2/Hz) and acounting for OOI broadband 128.9 offset.
+acknowledgement: >- 
+  These products support the OOI-RCA project funded by the National Science Foundation.
+license: CC 4.0
+standard_name_vocabulary: CF Standard Name Table v80
+date_created: AUTOPOPULATE
+creator_name: Joe Duprey, Orest Kawka, Mike Vardaro, Debbie Kelly
+creator_email: jduprey@uw.edu
+creator_url: https://oceanobservatories.org/
+institution: Ocean Observatories Initiative Regional Cabeled Array operated by the University of Washington 
+publisher_name: National Science Foundation Ocean Observatories Initiative #TODO
+publisher_email: jduprey@uw.edu #TODO
+publisher_url: https://oceanobservatories.org/
+geospatial_bounds: POINT (44.63 -124.30)
+comment: Data includes gaps and where diverted and/or Redacted by US Navy.
+time_coverage_start: AUTOPOPULATE
+time_coverage_end: AUTOPOPULATE
+time_coverage_duration: P1D
+time_coverage_resolution: P60S
+platform: OOI UW RCA reference designators including CE02SHBP-LJ01D-11-HYDBBA106 (44.63721, -124.30564),CE04OSBP-LJ01C-11-HYDBBA105" (44.36933, -124.95347), RS01SBPS-PC01A-08-HYDBBA103 (44.51516, -125.3899), RS01SLBS-LJ01A-09-HYDBBA102 (44.51505, -125.39002), RS03AXBS-LJ03A-09-HYDBBA302 (45.81676, -129.75426), RS03AXPS-PC03A-08-HYDBBA303 (45.81671, -129.75405), 
+instrument: icListen model SB35-ETH 
+cdm_data_type: TimeSeries
+references: >-
+  Computation of single-sided mean-square sound pressure spectral density with 1 Hz resolution
+  followed ISO 18405 3.1.3.13 (International Standard ISO 18405:2017(E), Underwater Acoustics – Terminology.  Geneva: ISO).
+  Hybrid millidecade band processing followed Martin et al. (2021a,b:  https://doi.org/10.1121/10.0003324;
+  https://doi.org/10.1121/10.0005818)
