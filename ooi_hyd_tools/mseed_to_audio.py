@@ -1,4 +1,5 @@
 import fsspec
+import pkg_resources
 import concurrent.futures
 import obspy as obs
 import numpy as np
@@ -302,6 +303,9 @@ def acoustic_flow_oneday(
     stages,
 ):
     logger = select_logger()
+     # log python package versions on cloud machine
+    installed_packages = {p.project_name: p.version for p in pkg_resources.working_set}
+    logger.info(f"Installed packages: {installed_packages}")
 
     if stages == "audio" or stages == "all":
         hyd, png_dir, date_str = convert_mseed_to_audio(
