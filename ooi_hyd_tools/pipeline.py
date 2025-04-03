@@ -1,5 +1,4 @@
 import click
-import pkg_resources
 
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta
@@ -102,10 +101,6 @@ def run_acoustic_pipeline(
     parallel_in_cloud,
 ):
     if parallel_in_cloud:
-        
-        # log python package versions on cloud machine
-        installed_packages = {p.project_name: p.version for p in pkg_resources.working_set}
-        logger.info(f"Installed packages: {installed_packages}")
 
         start_date = datetime.strptime(start_date, "%Y/%m/%d")
         if end_date is None:
