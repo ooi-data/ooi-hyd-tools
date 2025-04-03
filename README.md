@@ -42,3 +42,15 @@ acoustic-pipeline \
 --apply-cals false
 ```
 Run with `--stages all` to generate MBARI-style hybrid millidecade spectrograms.
+`acoustic-pipeline --help` To learn more about each argument. 
+
+# OOI reference designators (refdes) for broadband hydrophones and approximate lat/lon:
+
+"CE02SHBP-LJ01D-11-HYDBBA106": (44.63721, -124.30564), "Oregon Shelf"
+"CE04OSBP-LJ01C-11-HYDBBA105": (44.36933, -124.95347), "Oregon Offshore"
+"RS01SBPS-PC01A-08-HYDBBA103": (44.51516, -125.3899), "Slope Base Platform"
+"RS01SLBS-LJ01A-09-HYDBBA102": (44.51505, -125.39002), "Slope Base Seafloor"
+"RS03AXBS-LJ03A-09-HYDBBA302": (45.81676, -129.75426), "Axial Base Seafloor"
+"RS03AXPS-PC03A-08-HYDBBA303": (45.81671, -129.75405), "Axial Base Platform"
+
+Interactive map of assets at https://app.interactiveoceans.washington.edu/map
