@@ -26,17 +26,18 @@ https://github.com/lifewatch/pypam
 
 `pip install -e .`
 
-Now you can run the `acoustic-pipeline` command to convert a day of archived ooi mseed to a day of 5 minute audio files.
+Now you can run the `acoustic-pipeline` command to convert a single day or multiple days of archived ooi mseed to a day of 5 minute audio files.
 
 ```
 acoustic-pipeline --hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
---date "2025/02/20" \
+--start-date "2025/02/20" \
+--end-date "2025/03/15" \
 --sr 64000 \
 --format PCM_24 \
 --normalize-traces false \
---fudge-factor 0.02 \
 --write-wav false \
+--apply-cals true \
 --stages audio \
 --apply-cals false
 ```
-Adjust arguments as needed
+Run with `--stages all` to generate MBARI-style hybrid millidecade spectrograms.
