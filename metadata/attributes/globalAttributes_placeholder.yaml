@@ -11,7 +11,7 @@ keywords_vocabulary: GCMD Science Keywords
 history: >- 
   Original hybrid millidecade spectra were produced by Joe Duprey (UW OOI-RCA) following workflow specified by MBARI Soundscape Team
 source: >-
-  Data analysis was performed using Python Passive Acoustic Monitoring (PyPAM) software, version {{PyPAM_version}}, to produce hybrid millidecade band (HMB) spectra of sound 
+  Data analysis was performed using Python Passive Acoustic Monitoring (PyPAM) software, to produce hybrid millidecade band (HMB) spectra of sound 
   levels from oceanic audio recordings.  Processing followed the methods defined in Martin et al. (2021a,b), and results were validated by comparison with results produced 
   using the MATLAB code provided as supplemental material in Martin et al. (2021b).  Power spectral density (PSD) levels were computed from 1-minute segments of audio data. 
   Input flac audio data as read (int24 data) were used to compute PSD. An offset of 128.9 dB was applied to the hydrophone sensitivity data to account for the 24-bit ADC and 
