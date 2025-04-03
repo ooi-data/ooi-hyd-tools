@@ -42,7 +42,7 @@ TIMEOUT = 20  # if lowered, the OOI raw data server will be overloaded
     type=bool,
     default=False,
     show_default=True,
-    help="Set to True to normalize traces for Audacity.",
+    help="Set to True to normalize audio data in 5 minute incriments.",
 )
 @click.option(
     "--fudge-factor",
