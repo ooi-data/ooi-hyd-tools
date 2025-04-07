@@ -19,8 +19,6 @@ from ooi_hyd_tools.utils import select_logger
 
 plt.switch_backend("Agg")  # use non-interactive backend
 # hydrophone specification
-# TODO this are placeholder values borrowed from MBARI, OOI will need to get its own attributes and metadata into YAML and NC
-# this is in the works...
 VOLTAGE_MULTIPLIER = 1  # TODO confirm with Orest
 # NOTE OOI broadband hydrophone output is 24-bit ADC with maximum 3 volts.
 # So, there are 8388608 / 3 = 2796202 counts per volt which is equivalent
@@ -29,7 +27,7 @@ VOLTAGE_MULTIPLIER = 1  # TODO confirm with Orest
 FREQ_LIMS = (
     10,
     30000,
-)  # subset frequency band for output HMB spectra, recording @ 64 kHz #TODO
+)  # subset frequency band for output HMB spectra, recording @ 64 kHz
 DB_RANGE = (45, 120)
 
 # metadata files for output netCDF data products
@@ -198,7 +196,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False)
     plot_dataset_summary(
         ds,
         lat_lon_for_solpos=HYDBB_COORDS[hyd_refdes],
-        title=f"{hyd_refdes}, {HYDBB_COORDS[hyd_refdes][0]}°N, {HYDBB_COORDS[hyd_refdes][1]}°W",  # TODO human readable title
+        title=f"{hyd_refdes}, {HYDBB_COORDS[hyd_refdes][0]}°N, {HYDBB_COORDS[hyd_refdes][1]}°W",
         ylim=FREQ_LIMS,
         cmlim=DB_RANGE,
         jpeg_filename=f"{str(output_dir)}/{instrument}_{start_date}.png",

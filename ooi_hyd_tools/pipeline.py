@@ -63,8 +63,9 @@ TIMEOUT = 20  # if lowered, the OOI raw data server will be overloaded
     type=bool,
     default=False,
     show_default=True,
-    help="NOT YET IMPLEMENTED!!! Apply hydrophone calibration before generateing hybrid millidecade spectrograms.",
-)  # TODO not yet implemented
+    help="EXPERIMENTAL FEATURE! Apply hydrophone calibration before generateing hybrid millidecade spectrograms." 
+    "Available for HYDBBA105, HYDBBA106 and HYDBBA302 only.",
+) #TODO update when no longer experimental
 @click.option(
     "--s3-sync",
     type=bool,
