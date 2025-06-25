@@ -186,7 +186,7 @@ def convert_mseed_to_audio(
     hyd_refdes,
     date,
     fudge_factor,
-    sr,
+    sr, # TODO sample rate should be taken from mseed metadata
     format,
     normalize_traces,
     write_wav,

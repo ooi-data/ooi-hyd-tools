@@ -1,7 +1,7 @@
 import click
 
 from prefect.deployments import run_deployment
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
 from ooi_hyd_tools.utils import select_logger
 
@@ -10,13 +10,18 @@ logger = select_logger()
 PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_4vcpu_30gb"
 TIMEOUT = 20  # if lowered, the OOI raw data server will be overloaded
 
+# get yesterday's date in YYYY/MM/DD format
+now_utc = datetime.now(timezone.utc)
+yesterday_utc = now_utc - timedelta(days=1)
+yesterday = yesterday_utc.strftime("%Y/%m/%d")
+
 
 @click.command()
 @click.option(
     "--start-date",
     type=str,
-    required=True,
-    help="Date in the format YYYY/MM/DD (e.g., '2025/01/16').",
+    default=yesterday,
+    help="Date in the format YYYY/MM/DD (e.g., '2025/01/16'). Default is yesterday's date (UTC).",
 )
 @click.option(
     "--end-date", type=str, default=None, help="YYYY/MM/DD leave blank to run a single day"
