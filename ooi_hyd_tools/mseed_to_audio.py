@@ -297,6 +297,7 @@ def acoustic_flow_oneday(
     fudge_factor,
     write_wav,
     apply_cals,
+    freq_lims,
     s3_sync,
     stages,
 ):
@@ -325,7 +326,7 @@ def acoustic_flow_oneday(
             compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str)
 
     if stages == "viz" or stages == "all":
-        audio_to_spec(date, "flac", hyd_refdes, apply_cals)
+        audio_to_spec(date, "flac", hyd_refdes, apply_cals, freq_lims)
 
     if s3_sync:
         sync_png_nc_to_s3(hyd_refdes, date)

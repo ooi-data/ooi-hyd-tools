@@ -69,6 +69,14 @@ yesterday = yesterday_utc.strftime("%Y/%m/%d")
     "Available for HYDBBA105, HYDBBA106 and HYDBBA302 only.",
 ) #TODO update as additional hydrophones are added.
 @click.option(
+    "--freq-lims",
+    type=(float, float),
+    default=(10, 30_000),
+    show_default=True,
+    help="Frequency limits for the hybrid millidecade spectrograms (min, max). Default is (10, 30,000) As of 6/2025 OOI hydrophones"
+    " are recording at 64 kHz.",
+)
+@click.option(
     "--s3-sync",
     type=bool,
     default=False,
@@ -98,6 +106,7 @@ def run_acoustic_pipeline(
     fudge_factor,
     write_wav,
     apply_cals,
+    freq_lims,
     s3_sync,
     stages,
     parallel_in_cloud,
@@ -115,6 +124,7 @@ def run_acoustic_pipeline(
                 "fudge_factor": fudge_factor,
                 "write_wav": write_wav,
                 "apply_cals": apply_cals,
+                "freq_lims": freq_lims,
                 "s3_sync": s3_sync,
                 "stages": stages,
             }
@@ -138,6 +148,7 @@ def run_acoustic_pipeline(
                     "fudge_factor": fudge_factor,
                     "write_wav": write_wav,
                     "apply_cals": apply_cals,
+                    "freq_lims": freq_lims,
                     "s3_sync": s3_sync,
                     "stages": stages,
                 }
@@ -162,6 +173,7 @@ def run_acoustic_pipeline(
                 fudge_factor=fudge_factor,
                 write_wav=write_wav,
                 apply_cals=apply_cals,
+                freq_lims=freq_lims,
                 s3_sync=s3_sync,
                 stages=stages,
             )
@@ -178,6 +190,7 @@ def run_acoustic_pipeline(
                     fudge_factor=fudge_factor,
                     write_wav=write_wav,
                     apply_cals=apply_cals,
+                    freq_lims=freq_lims,
                     s3_sync=s3_sync,
                     stages=stages,
                 )

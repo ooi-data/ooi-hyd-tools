@@ -24,10 +24,6 @@ VOLTAGE_MULTIPLIER = 1  # TODO confirm with Orest
 # So, there are 8388608 / 3 = 2796202 counts per volt which is equivalent
 # to 128.9 dB (=20log10(2796202)). This offset is applied to the cal files in rca_correction_cals
 # so here we use a voltage multiplier of 1.
-FREQ_LIMS = (
-    10,
-    30000,
-)  # subset frequency band for output HMB spectra, recording @ 64 kHz
 DB_RANGE = (45, 120)
 
 # metadata files for output netCDF data products
@@ -49,14 +45,15 @@ def audio_to_spec(
     start_date,
     file_type,
     hyd_refdes,
-    apply_cals=False,
+    apply_cals,
+    freq_lims,
 ):
     # pbp takes dates as strings without slashes
     start_date = start_date.replace("/", "")
 
     gen_metadata(start_date, file_type, hyd_refdes)
 
-    gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals)
+    gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_lims)
 
 
 @task
@@ -139,7 +136,7 @@ def find_cal_file(refdes, date_str):
     return cal_file_path_str  # pbp wants a string not a path
 
 
-def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False):
+def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_lims):
     logger = select_logger()
     instrument = hyd_refdes[-9:]
     # set up directories
@@ -160,7 +157,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False)
     hmb_gen.set_global_attrs_uri(GLOBAL_ATTRS_YAML)
     hmb_gen.set_variable_attrs_uri(VARIABLE_ATTRS_YAML)
     hmb_gen.set_voltage_multiplier(VOLTAGE_MULTIPLIER)
-    hmb_gen.set_subset_to(FREQ_LIMS)
+    hmb_gen.set_subset_to(freq_lims)
 
     if apply_cals:
         logger.info("Applying calibration .nc files from the ooi-hyd-tools metadata folder.")
@@ -197,7 +194,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False)
         ds,
         lat_lon_for_solpos=HYDBB_COORDS[hyd_refdes],
         title=f"{hyd_refdes}, {HYDBB_COORDS[hyd_refdes][0]}°N, {HYDBB_COORDS[hyd_refdes][1]}°W",
-        ylim=FREQ_LIMS,
+        ylim=freq_lims,
         cmlim=DB_RANGE,
         jpeg_filename=f"{str(output_dir)}/{instrument}_{start_date}.png",
         show=False,
