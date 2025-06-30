@@ -68,9 +68,9 @@ yesterday = yesterday_utc.strftime("%Y/%m/%d")
     type=bool,
     default=False,
     show_default=True,
-    help="EXPERIMENTAL FEATURE! Apply hydrophone calibration before generateing hybrid millidecade spectrograms." 
+    help="Apply hydrophone calibration before generateing hybrid millidecade spectrograms." 
     "Available for HYDBBA105, HYDBBA106 and HYDBBA302 only.",
-) #TODO update when no longer experimental
+) #TODO update as additional hydrophones are added.
 @click.option(
     "--s3-sync",
     type=bool,

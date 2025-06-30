@@ -162,8 +162,8 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals=False)
     hmb_gen.set_voltage_multiplier(VOLTAGE_MULTIPLIER)
     hmb_gen.set_subset_to(FREQ_LIMS)
 
-    if apply_cals:  # TODO
-        logger.warning("CALS ARE A EXPERIMENTAL FEATURE")
+    if apply_cals:
+        logger.info("Applying calibration .nc files from the ooi-hyd-tools metadata folder.")
         sensitivity_uri = find_cal_file(hyd_refdes, start_date)
         # hmb_gen.set_sensitivity(-170)
         hmb_gen.set_sensitivity(sensitivity_uri)
