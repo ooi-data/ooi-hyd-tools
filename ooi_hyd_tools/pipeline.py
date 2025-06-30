@@ -33,9 +33,6 @@ yesterday = yesterday_utc.strftime("%Y/%m/%d")
     help="Hydrophone reference designator (e.g., 'CE04OSBP-LJ01C-11-HYDBBA105').",
 )
 @click.option(
-    "--sr", type=int, default=64000, show_default=True, help="Sample rate in Hz (e.g., 64000)."
-)
-@click.option(
     "--format",
     type=click.Choice(["FLOAT", "PCM_24", "PCM_32"], case_sensitive=False),
     default="PCM_24",
@@ -96,7 +93,6 @@ def run_acoustic_pipeline(
     start_date,
     end_date,
     hyd_refdes,
-    sr,
     format,
     normalize_traces,
     fudge_factor,
@@ -114,7 +110,6 @@ def run_acoustic_pipeline(
             params = {
                 "hyd_refdes": hyd_refdes,
                 "date": start_date.strftime("%Y/%m/%d"),
-                "sr": sr,
                 "format": format,
                 "normalize_traces": normalize_traces,
                 "fudge_factor": fudge_factor,
@@ -138,7 +133,6 @@ def run_acoustic_pipeline(
                 params = {
                     "hyd_refdes": hyd_refdes,
                     "date": start_date.strftime("%Y/%m/%d"),
-                    "sr": sr,
                     "format": format,
                     "normalize_traces": normalize_traces,
                     "fudge_factor": fudge_factor,
@@ -163,7 +157,6 @@ def run_acoustic_pipeline(
             acoustic_flow_oneday(
                 hyd_refdes=hyd_refdes,
                 date=start_date.strftime("%Y/%m/%d"),
-                sr=sr,
                 format=format,
                 normalize_traces=normalize_traces,
                 fudge_factor=fudge_factor,
@@ -180,7 +173,6 @@ def run_acoustic_pipeline(
                 acoustic_flow_oneday(
                     hyd_refdes=hyd_refdes,
                     date=start_date.strftime("%Y/%m/%d"),
-                    sr=sr,
                     format=format,
                     normalize_traces=normalize_traces,
                     fudge_factor=fudge_factor,

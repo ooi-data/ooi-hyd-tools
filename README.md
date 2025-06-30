@@ -33,7 +33,6 @@ acoustic-pipeline \
 --hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
 --start-date "2025/02/20" \
 --end-date "2025/03/15" \
---sr 64000 \
 --format PCM_24 \
 --normalize-traces false \
 --write-wav false \

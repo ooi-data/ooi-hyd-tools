@@ -31,8 +31,6 @@ HYD_REFDES
 DATE
     The day of hydrophone data you would like to convert to wav in the date format
     YYYY/MM/DD.
-SR
-    Sample rate you wish to use when saving wav files. OOI Hydrophone sampling rate is 64000 Hz.
 FORMAT
     'PCM_32' or 'FLOAT' The data subtype format for the resulting WAV files. OOI data is int32, 
      but some media players cannot import in this format. See `sf.available_subtypes('WAV')`
@@ -186,7 +184,6 @@ def convert_mseed_to_audio(
     hyd_refdes,
     date,
     fudge_factor,
-    sr, # TODO sample rate should be taken from mseed metadata
     format,
     normalize_traces,
     write_wav,
@@ -214,7 +211,9 @@ def convert_mseed_to_audio(
             if (
                 st is not None
             ):  # TODO as of now we are throwing out 5 minute segments with gaps > fudge factor
+                
                 start_time = str(st[0].stats["starttime"])
+                sr = st[0].stats["sampling_rate"]
                 dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
 
                 new_format = dt.strftime("%Y%m%d_%H%M%S")  # dt.strftime("%y%m%d%H%M%S%z")
@@ -293,7 +292,6 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
 def acoustic_flow_oneday(
     hyd_refdes,
     date,
-    sr,
     format,
     normalize_traces,
     fudge_factor,
@@ -311,7 +309,6 @@ def acoustic_flow_oneday(
         hyd, png_dir, date_str = convert_mseed_to_audio(
             hyd_refdes=hyd_refdes,
             date=date,
-            sr=sr,
             format=format,
             normalize_traces=normalize_traces,
             fudge_factor=fudge_factor,
