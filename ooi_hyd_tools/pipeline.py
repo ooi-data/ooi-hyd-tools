@@ -81,7 +81,7 @@ yesterday = yesterday_utc.strftime("%Y/%m/%d")
 @click.option(
     "--stages",
     type=click.Choice(["audio", "viz", "all"], case_sensitive=False),
-    default="audio",
+    default="all",
     show_default=True,
     help="Which stage of pipeline to run: 'audio' converts mseed to audio, 'viz' converts audio to spectrograms, 'all' runs both.",
 )
