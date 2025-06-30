@@ -213,7 +213,7 @@ def convert_mseed_to_audio(
             ):  # TODO as of now we are throwing out 5 minute segments with gaps > fudge factor
                 
                 start_time = str(st[0].stats["starttime"])
-                sr = st[0].stats["sampling_rate"]
+                sr = int(st[0].stats["sampling_rate"])
                 dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
 
                 new_format = dt.strftime("%Y%m%d_%H%M%S")  # dt.strftime("%y%m%d%H%M%S%z")
