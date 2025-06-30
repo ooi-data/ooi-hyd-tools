@@ -70,7 +70,7 @@ yesterday = yesterday_utc.strftime("%Y/%m/%d")
 ) #TODO update as additional hydrophones are added.
 @click.option(
     "--freq-lims",
-    type=(float, float),
+    type=(int, int),
     default=(10, 30_000),
     show_default=True,
     help="Frequency limits for the hybrid millidecade spectrograms (min, max). Default is (10, 30,000) As of 6/2025 OOI hydrophones"
