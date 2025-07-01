@@ -49,6 +49,7 @@ def audio_to_spec(
     freq_lims,
 ):
     # pbp takes dates as strings without slashes
+    freq_lims = tuple(freq_lims)
     start_date = start_date.replace("/", "")
 
     gen_metadata(start_date, file_type, hyd_refdes)
