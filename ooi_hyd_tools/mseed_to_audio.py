@@ -224,8 +224,8 @@ def convert_mseed_to_audio(
                 if normalize_traces:
                     st = st.normalize()
 
-                print(type(st[0].data[0]))
-                print(st[0].data[:5])
+                # print(type(st[0].data[0]))
+                # print(st[0].data[:5])
 
                 flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
                 wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
