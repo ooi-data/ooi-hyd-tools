@@ -8,7 +8,7 @@ from ooi_hyd_tools.utils import select_logger
 logger = select_logger()
 
 PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_4vcpu_30gb"
-TIMEOUT = 20  # if lowered, the OOI raw data server will be overloaded
+TIMEOUT = 12  # if lowered, the OOI raw data server will be overloaded
 
 # get yesterday's date in YYYY/MM/DD format
 now_utc = datetime.now(timezone.utc)
