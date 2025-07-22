@@ -34,11 +34,8 @@ acoustic-pipeline \
 --start-date "2025/02/20" \
 --end-date "2025/03/15" \
 --format PCM_24 \
---normalize-traces false \
---write-wav false \
---apply-cals true \
 --stages audio \
---apply-cals false
+--fudge-factor 0.021
 ```
 Run with `--stages all` to generate MBARI-style hybrid millidecade spectrograms.
 `acoustic-pipeline --help` To learn more about each argument. 
