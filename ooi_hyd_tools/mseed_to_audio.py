@@ -44,7 +44,7 @@ NOTE See cli in pipeline.py for additional help and context.
 def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
     # automatically set max_workers to 2x(available cores)
     if max_workers == -1:
-        max_workers = 2 * mp.cpu_count()
+        max_workers = min(24, 2 * mp.cpu_count())
         print(f"Max workers: {max_workers}")
 
     results = []
