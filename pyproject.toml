@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "fsspec>2024.10.0",
     "s3fs>2024.6.0",
-    "numpy>2",
+    "numpy",
     "soundfile==0.12.1",
     "tqdm",
     "obspy>1.4.2",
