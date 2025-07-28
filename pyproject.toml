@@ -4,23 +4,24 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ooi-hyd-tools"
-version = "1.3.0"
+version = "1.4.1"
 description = "Tools and scripts for working with OOI hydrophone data"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "fsspec>2024.10.0",
     "s3fs>2024.6.0",
-    "numpy",
+    "numpy<2",
     "soundfile==0.12.1",
     "tqdm",
-    "obspy>1.4.2",
+    "obspy==1.4.1",
     "jupyter",
     "loguru",
     "click",
     "matplotlib",
     "pydantic>2",
-    "prefect>2",
-    "polars>1.31",
+    "prefect<3",
+    "polars>1.8",
+    "awscli==1.33.44",
     "mbari-pbp @ git+https://git@github.com/jdduprey/pbp.git@ooi-qaqc",
     #"mbari-pbp @ git+https://github.com/mbari-org/pbp.git@main"
 
