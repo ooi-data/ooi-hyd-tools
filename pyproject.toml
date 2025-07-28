@@ -20,7 +20,7 @@ dependencies = [
     "matplotlib",
     "pydantic>2",
     "prefect>2",
-    "polars",
+    "polars>1.31",
     "mbari-pbp @ git+https://git@github.com/jdduprey/pbp.git@ooi-qaqc",
     #"mbari-pbp @ git+https://github.com/mbari-org/pbp.git@main"
 
