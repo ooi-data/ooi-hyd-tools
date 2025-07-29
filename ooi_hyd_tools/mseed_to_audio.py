@@ -1,5 +1,4 @@
 import fsspec
-import pkg_resources
 import concurrent.futures
 import obspy as obs
 import numpy as np
@@ -11,6 +10,7 @@ from datetime import datetime
 from tqdm import tqdm
 from pathlib import Path
 from prefect import task, flow
+from importlib.metadata import distributions
 
 from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
@@ -303,7 +303,7 @@ def acoustic_flow_oneday(
 ):
     logger = select_logger()
      # log python package versions on cloud machine
-    installed_packages = {p.project_name: p.version for p in pkg_resources.working_set}
+    installed_packages = {dist.metadata["Name"]: dist.version for dist in distributions()}
     logger.info(f"Installed packages: {installed_packages}")
 
     if stages == "audio" or stages == "all":
