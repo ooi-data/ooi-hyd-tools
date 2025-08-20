@@ -6,8 +6,7 @@ def select_logger():
 
     try:
         logger = get_run_logger()
-    except Exception as e:
-        print(e)
+    except Exception:
         from loguru import logger
 
     return logger
