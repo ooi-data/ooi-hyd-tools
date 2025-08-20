@@ -13,6 +13,7 @@ from prefect import task, flow
 from importlib.metadata import distributions
 
 from ooi_hyd_tools.audio_to_spec import audio_to_spec
+from ooi_hyd_tools.low_freq import run_low_freq_oneday
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
 from ooi_hyd_tools.utils import select_logger
 
@@ -243,7 +244,7 @@ def convert_mseed_to_audio(
         return hyd, png_dir, date_str
 
 
-@task
+@task # TODO remove this once FLAC are being distributed or sooner
 def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     logger = select_logger()
 
@@ -299,14 +300,14 @@ def acoustic_flow_oneday(
     apply_cals,
     freq_lims,
     s3_sync,
-    stages,
+    flag,
 ):
     logger = select_logger()
      # log python package versions on cloud machine
     installed_packages = {dist.metadata["Name"]: dist.version for dist in distributions()}
     logger.info(f"Installed packages: {installed_packages}")
 
-    if stages == "audio" or stages == "all":
+    if flag == "audio" or flag == "all":
         hyd, png_dir, date_str = convert_mseed_to_audio(
             hyd_refdes=hyd_refdes,
             date=date,
@@ -325,8 +326,11 @@ def acoustic_flow_oneday(
         if write_wav:
             compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str)
 
-    if stages == "viz" or stages == "all":
+    if flag == "viz" or flag == "all":
         audio_to_spec(date, "flac", hyd_refdes, apply_cals, freq_lims)
+
+    if flag == "low_freq":
+        run_low_freq_oneday(hyd_refdes, date)
 
     if s3_sync:
         sync_png_nc_to_s3(hyd_refdes, date)

@@ -84,11 +84,12 @@ yesterday = yesterday_utc.strftime("%Y/%m/%d")
     help="Whether to sync .nc and .png files in local output folder to s3",
 )
 @click.option(
-    "--stages",
-    type=click.Choice(["audio", "viz", "all"], case_sensitive=False),
+    "--flag",
+    type=click.Choice(["audio", "viz", "all", "low_freq"], case_sensitive=False),
     default="all",
     show_default=True,
-    help="Which stage of pipeline to run: 'audio' converts mseed to audio, 'viz' converts audio to spectrograms, 'all' runs both.",
+    help="Which stage of pipeline to run: 'audio' converts mseed to audio, 'viz' converts audio to spectrograms, 'all' runs both."
+    " 'low_freq' generates spectrograms for low freq hydrophones",
 )
 @click.option(
     "--parallel-in-cloud",
@@ -108,7 +109,7 @@ def run_acoustic_pipeline(
     apply_cals,
     freq_lims,
     s3_sync,
-    stages,
+    flag,
     parallel_in_cloud,
 ):
     if parallel_in_cloud:
@@ -126,7 +127,7 @@ def run_acoustic_pipeline(
                 "apply_cals": apply_cals,
                 "freq_lims": freq_lims,
                 "s3_sync": s3_sync,
-                "stages": stages,
+                "flag": flag,
             }
 
             logger.info(f"Launching workflow for {run_name} in cloud")
@@ -150,7 +151,7 @@ def run_acoustic_pipeline(
                     "apply_cals": apply_cals,
                     "freq_lims": freq_lims,
                     "s3_sync": s3_sync,
-                    "stages": stages,
+                    "flag": flag,
                 }
                 logger.info(f"Launching workflow for {run_name} in cloud")
                 run_deployment(
@@ -175,7 +176,7 @@ def run_acoustic_pipeline(
                 apply_cals=apply_cals,
                 freq_lims=freq_lims,
                 s3_sync=s3_sync,
-                stages=stages,
+                flag=flag,
             )
 
         else:  # run a range of days
@@ -192,7 +193,7 @@ def run_acoustic_pipeline(
                     apply_cals=apply_cals,
                     freq_lims=freq_lims,
                     s3_sync=s3_sync,
-                    stages=stages,
+                    flag=flag,
                 )
 
                 start_date += timedelta(days=1)
