@@ -34,10 +34,10 @@ acoustic-pipeline \
 --start-date "2025/02/20" \
 --end-date "2025/03/15" \
 --format PCM_24 \
---stages audio \
+--flag audio \
 --fudge-factor 0.021
 ```
-Run with `--stages all` to generate MBARI-style hybrid millidecade spectrograms.
+Run with `--flag all` to generate MBARI-style hybrid millidecade spectrograms.
 `acoustic-pipeline --help` To learn more about each argument. 
 
 # OOI reference designators (refdes) for broadband hydrophones and approximate lat/lon:
