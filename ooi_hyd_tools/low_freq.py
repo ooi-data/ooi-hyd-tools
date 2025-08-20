@@ -108,7 +108,8 @@ def plot_dataset_summary(
     ax0 = fig.add_subplot(spec[2])
     vmin, vmax = cmlim
 
-    time_values = md.date2num(ds['time'].values)
+    time_values = md.date2num(ds['time'].values) #HACK is this matplotlib backend dependent? not 
+    # in the original mbari function
     sg = plt.pcolormesh(
         time_values, ds['frequency'], da, shading="nearest", cmap=cmap, vmin=vmin, vmax=vmax
     )
