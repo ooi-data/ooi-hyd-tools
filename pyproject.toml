@@ -22,6 +22,7 @@ dependencies = [
     "polars>1.8",
     "awscli==1.33.44",
     "scipy>=1.10.0",
+    "ooipy",
     "mbari-pbp @ git+https://git@github.com/jdduprey/pbp.git@ooi-qaqc",
     #"mbari-pbp @ git+https://github.com/mbari-org/pbp.git@main"
 
