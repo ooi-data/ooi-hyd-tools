@@ -19,7 +19,7 @@ from ooi_hyd_tools.utils import select_logger
 
 plt.switch_backend("Agg")  # use non-interactive backend
 # hydrophone specification
-VOLTAGE_MULTIPLIER = 1  # TODO confirm with Orest
+VOLTAGE_MULTIPLIER = 1
 # NOTE OOI broadband hydrophone output is 24-bit ADC with maximum 3 volts.
 # So, there are 8388608 / 3 = 2796202 counts per volt which is equivalent
 # to 128.9 dB (=20log10(2796202)). This offset is applied to the cal files in rca_correction_cals
@@ -27,8 +27,8 @@ VOLTAGE_MULTIPLIER = 1  # TODO confirm with Orest
 DB_RANGE = (45, 120)
 
 # metadata files for output netCDF data products
-GLOBAL_ATTRS_YAML = "./metadata/attributes/globalAttributes.yaml"  # TODO
-VARIABLE_ATTRS_YAML = "./metadata/attributes/variableAttributes.yaml"  # TODO
+GLOBAL_ATTRS_YAML = "./metadata/attributes/globalAttributes.yaml"
+VARIABLE_ATTRS_YAML = "./metadata/attributes/variableAttributes.yaml"
 
 HYDBB_COORDS = {
     "CE02SHBP-LJ01D-11-HYDBBA106": (44.63721, -124.30564),

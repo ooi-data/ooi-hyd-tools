@@ -66,8 +66,8 @@ yesterday = yesterday_utc.strftime("%Y/%m/%d")
     default=False,
     show_default=True,
     help="Apply hydrophone calibration before generateing hybrid millidecade spectrograms." 
-    "Available for HYDBBA105, HYDBBA106 and HYDBBA302 only.",
-) #TODO update as additional hydrophones are added.
+    "Available for HYDBBA105, HYDBBA106, HYDBBA302, HYDBBA106.",
+)
 @click.option(
     "--freq-lims",
     type=(int, int),
