@@ -8,7 +8,7 @@ version = "1.4.1"
 description = "Tools and scripts for working with OOI hydrophone data"
 requires-python = ">=3.10"
 dependencies = [
-    #"cftime>=1.6.0", #TODO
+    "cftime>=1.6.0",
     "pandas<3.0.0,>=2.0.2",
     "xarray==2023.8.0",
     "fsspec>2024.10.0",
