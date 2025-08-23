@@ -26,3 +26,17 @@ deployments:
     work_queue_name:
   schedule:
   is_schedule_active: true
+- name: hydbb_pipeline_8vcpu_60gb
+  version:
+  tags: []
+  description:
+  entrypoint: ./ooi_hyd_tools/pipeline.py:acoustic_flow_oneday
+  parameters: {}
+  work_pool:
+    name: hydrophone-pool
+    work_queue_name:
+    job_variables:
+      cpu: 8192
+      memory: 64424
+  schedule:
+  is_schedule_active: true
