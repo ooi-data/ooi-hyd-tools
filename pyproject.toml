@@ -13,7 +13,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
-license = "gnu"
+license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 dependencies = [
     "cftime>=1.6.0",
