@@ -29,7 +29,7 @@ dependencies = [
     "click>=7",
     "matplotlib>3.9",
     "pydantic>2",
-    "prefect<3,>=2.20",
+    "prefect<3,>=2.5",
     #"netcdf4<2.0.0,>=1.6.4",
     "polars>1.8",
     "awscli==1.33.44",
