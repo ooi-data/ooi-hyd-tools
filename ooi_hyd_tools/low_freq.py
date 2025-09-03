@@ -176,6 +176,8 @@ def run_low_freq_oneday(
 ):
     
     output_dir = Path("./output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     instrument = hyd_refdes[-9:]
     start_date = date.replace("/", "")
     date = datetime.strptime(date, "%Y/%m/%d")
