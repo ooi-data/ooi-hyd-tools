@@ -11,7 +11,7 @@ from pathlib import Path
 from matplotlib import gridspec
 from typing import Optional
 
-#from ooipy.request.hydrophone_request import get_acoustic_data_LF TODO sort out ooipy deps
+from ooipy.request.hydrophone_request import get_acoustic_data_LF  # TODO sort out ooipy deps
 
 LOW_FREQ_DICT = {
     'RS01SLBS-MJ01A-05-HYDLFA101': ['HYSB1', (44.50829, -125.40466)],
