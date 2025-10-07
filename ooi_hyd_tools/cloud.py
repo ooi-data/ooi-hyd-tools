@@ -5,7 +5,7 @@ from prefect import task
 
 from ooi_hyd_tools.utils import select_logger, get_s3_kwargs
 
-OOI_DATA_BUCKET = "s3://ooi-acoustic-data"
+OOI_DATA_BUCKET = "s3://ooi-hmb-data"
 OOI_SPECTROGRAM_BUCKET = "s3://ooi-rca-qaqc-prod"
 
 
