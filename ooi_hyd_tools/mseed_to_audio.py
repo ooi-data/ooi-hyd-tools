@@ -85,21 +85,34 @@ class HydrophoneDay:
         FS = fsspec.filesystem("http")
         print(mainurl)
         print(Path.cwd())
-
+        
         try:
             data_url_list = sorted(
                 f["name"]
                 for f in FS.ls(mainurl)
                 if f["type"] == "file" and f["name"].endswith(".mseed")
             )
+
+            try:
+                addendum_list = sorted(
+                    f["name"]
+                    for f in FS.ls(f"{mainurl}/addendum")
+                    if f["type"] == "file" and f["name"].endswith(".mseed")
+                )
+            except Exception as e:
+                print(f"No addendum for {day_str}")
+                addendum_list = []
+
         except Exception as e:
             print("Client response: ", str(e))
             return None
 
+        data_url_list.extend(addendum_list)
+
         if not data_url_list:
             print("No Data Available for Specified Time")
             return None
-
+        
         return data_url_list
 
     def read_and_repair_gaps(self, format):
