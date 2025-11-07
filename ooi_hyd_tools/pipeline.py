@@ -1,4 +1,5 @@
 import click
+import yaml 
 
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta, timezone
@@ -7,7 +8,7 @@ from ooi_hyd_tools.utils import select_logger
 
 logger = select_logger()
 
-PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline_4vcpu_30gb"
+PREFECT_DEPLOYMENT = "acoustic-flow-oneday/"
 TIMEOUT = 12  # if lowered, the OOI raw data server will be overloaded
 
 # get yesterday's date in YYYY/MM/DD format
@@ -15,6 +16,8 @@ now_utc = datetime.now(timezone.utc)
 yesterday_utc = now_utc - timedelta(days=1)
 yesterday = yesterday_utc.strftime("%Y/%m/%d")
 
+with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
+    config_dict = yaml.safe_load(f)
 
 @click.command()
 @click.option(
@@ -132,7 +135,7 @@ def run_acoustic_pipeline(
 
             logger.info(f"Launching workflow for {run_name} in cloud")
             run_deployment(
-                name=PREFECT_DEPLOYMENT,
+                name=f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes]}",
                 parameters=params,
                 flow_run_name=run_name,
                 timeout=TIMEOUT,
@@ -155,7 +158,7 @@ def run_acoustic_pipeline(
                 }
                 logger.info(f"Launching workflow for {run_name} in cloud")
                 run_deployment(
-                    name=PREFECT_DEPLOYMENT,
+                    name=f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes]}",
                     parameters=params,
                     flow_run_name=run_name,
                     timeout=TIMEOUT,

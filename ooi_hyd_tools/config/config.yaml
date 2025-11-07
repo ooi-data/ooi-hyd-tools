@@ -1,0 +1,22 @@
+CE02SHBP-LJ01D-11-HYDBBA106:
+  hydbb_pipeline_4vcpu_30gb
+CE04OSBP-LJ01C-11-HYDBBA105:
+  hydbb_pipeline_4vcpu_30gb
+RS01SBPS-PC01A-08-HYDBBA103:
+  hydbb_pipeline_4vcpu_30gb
+RS01SLBS-LJ01A-09-HYDBBA102:
+  hydbb_pipeline_4vcpu_30gb
+RS03AXBS-LJ03A-09-HYDBBA302:
+  hydbb_pipeline_4vcpu_30gb
+RS03AXPS-PC03A-08-HYDBBA303:
+  hydbb_pipeline_4vcpu_30gb
+RS01SLBS-MJ01A-05-HYDLFA101:
+  hydbb_pipeline_2vcpu_16gb
+RS03AXBS-MJ03A-05-HYDLFA301:
+  hydbb_pipeline_2vcpu_16gb
+RS01SUM1-LJ01B-05-HYDLFA104:
+  hydbb_pipeline_2vcpu_16gb
+RS03CCAL-MJ03F-06-HYDLFA305:
+  hydbb_pipeline_2vcpu_16gb
+RS03ECAL-MJ03E-09-HYDLFA304:
+  hydbb_pipeline_2vcpu_16gb
