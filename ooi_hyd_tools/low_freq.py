@@ -11,7 +11,7 @@ from pathlib import Path
 from matplotlib import gridspec
 from typing import Optional
 
-from ooipy.request.hydrophone_request import get_acoustic_data_LF  # TODO sort out ooipy deps
+from ooipy.request.hydrophone_request import get_acoustic_data_LF
 
 LOW_FREQ_DICT = {
     'RS01SLBS-MJ01A-05-HYDLFA101': ['HYSB1', (44.50829, -125.40466)],
@@ -66,7 +66,8 @@ def plot_dataset_summary(
     seg.iloc[d] = 1
     # dusk / dawn (gray range)
     d = np.squeeze(np.where(np.logical_and(se <= 0, se >= -12)))
-    seg.iloc[d] = 1 - abs(se.iloc[d] / max(abs(se.iloc[d])))
+    seg.iloc[d] = 1 - abs(se.iloc[d] / np.max(abs(se.iloc[d]), 0)) # TODO np.max in mbari version?
+    # TODO before the line above would error if only times at night...
     # Get the indices of the min and max
     seg1 = pd.Series.to_numpy(solpos.elevation)
     minidx = np.squeeze(np.where(seg1 == min(seg1)))
