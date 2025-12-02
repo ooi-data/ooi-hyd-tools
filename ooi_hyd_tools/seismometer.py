@@ -47,15 +47,15 @@ def run_obs_viz(refdes, date_str, obs_run_type):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     date = datetime.strptime(date_str, "%Y/%m/%d")
-    start_date = date.strftime("%Y-%m-%dT00:00:00")
+    end_date = date.strftime("%Y-%m-%dT00:00:00")
 
-    end_dates = {span :(date + timedelta(days=span)).strftime("%Y-%m-%dT00:00:00") for span in time_spans.keys()}
+    start_dates = {span :(date - timedelta(days=span)).strftime("%Y-%m-%dT00:00:00") for span in time_spans.keys()}
 
     data_dict = {}
-    for span, end_time in end_dates.items(): 
+    for span, start_date in start_dates.items(): 
 
-        logger.info(f"Requesting data for {refdes} from {start_date} to {end_time} for {span}-day span")
-        st = obs.read(make_url(STATION_DICT[refdes], start_date, end_time))
+        logger.info(f"Requesting data for {refdes} from {start_date} to {end_date} for {span}-day span")
+        st = obs.read(make_url(STATION_DICT[refdes], start_date, end_date))
         data_dict[span] = st
 
     for span, st in data_dict.items():
