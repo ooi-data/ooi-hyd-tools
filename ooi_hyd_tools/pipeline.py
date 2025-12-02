@@ -88,11 +88,20 @@ with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
 )
 @click.option(
     "--flag",
-    type=click.Choice(["audio", "viz", "all", "low_freq"], case_sensitive=False),
+    type=click.Choice(["audio", "viz", "all", "low_freq", "obs"], case_sensitive=False),
     default="all",
     show_default=True,
-    help="Which stage of pipeline to run: 'audio' converts mseed to audio, 'viz' converts audio to spectrograms, 'all' runs both."
-    " 'low_freq' generates spectrograms for low freq hydrophones",
+    help="Which stage of pipeline to run: 'audio' converts mseed to audio for broadband hydrophoines," 
+    " 'viz' converts audio to spectrograms for broadband, 'all' runs both 'audio' and 'viz' broadband routines."
+    " 'low_freq' generates spectrograms for low freq hydrophones, 'obs' processes OBS seismometer data.",
+)
+@click.option(
+    "--obs-run-type",
+    type=click.Choice(["daily", "weekly"], case_sensitive=False),
+    default="daily",
+    show_default=True,
+    help="Only use with --flag 'obs', 'daily' run-type generates plots for 1, 7 day spans, 'weekly'"
+    "also includes 30 day span.",
 )
 @click.option(
     "--parallel-in-cloud",
@@ -113,6 +122,7 @@ def run_acoustic_pipeline(
     freq_lims,
     s3_sync,
     flag,
+    obs_run_type,
     parallel_in_cloud,
 ):
     if parallel_in_cloud:
@@ -131,6 +141,7 @@ def run_acoustic_pipeline(
                 "freq_lims": freq_lims,
                 "s3_sync": s3_sync,
                 "flag": flag,
+                "obs_run_type": obs_run_type,
             }
 
             logger.info(f"Launching workflow for {run_name} in cloud")
@@ -155,6 +166,7 @@ def run_acoustic_pipeline(
                     "freq_lims": freq_lims,
                     "s3_sync": s3_sync,
                     "flag": flag,
+                    "obs_run_type": obs_run_type,
                 }
                 logger.info(f"Launching workflow for {run_name} in cloud")
                 run_deployment(
@@ -180,6 +192,7 @@ def run_acoustic_pipeline(
                 freq_lims=freq_lims,
                 s3_sync=s3_sync,
                 flag=flag,
+                obs_run_type=obs_run_type,
             )
 
         else:  # run a range of days
@@ -197,6 +210,7 @@ def run_acoustic_pipeline(
                     freq_lims=freq_lims,
                     s3_sync=s3_sync,
                     flag=flag,
+                    obs_run_type=obs_run_type,
                 )
 
                 start_date += timedelta(days=1)

@@ -16,6 +16,7 @@ from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.low_freq import run_low_freq_oneday
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
 from ooi_hyd_tools.utils import select_logger
+from ooi_hyd_tools.seismometer import run_obs_viz
 
 
 """
@@ -314,6 +315,7 @@ def acoustic_flow_oneday(
     freq_lims,
     s3_sync,
     flag,
+    obs_run_type,
 ):
     logger = select_logger()
      # log python package versions on cloud machine
@@ -345,8 +347,11 @@ def acoustic_flow_oneday(
     if flag == "low_freq":
         run_low_freq_oneday(hyd_refdes, date)
 
+    if flag == "obs":
+        run_obs_viz(hyd_refdes, date, obs_run_type)
+
     if s3_sync:
-        sync_png_nc_to_s3(hyd_refdes, date)
+        sync_png_nc_to_s3(hyd_refdes, date, flag)
 
 
 if __name__ == "__main__":
