@@ -20,3 +20,29 @@ RS03CCAL-MJ03F-06-HYDLFA305:
   hydbb_pipeline_2vcpu_16gb
 RS03ECAL-MJ03E-09-HYDLFA304:
   hydbb_pipeline_2vcpu_16gb
+RS03ASHS-MJ03B-06-OBSSPA301:
+  hydbb_pipeline_2vcpu_16gb
+RS03ASHS-MJ03B-05-OBSSPA302:
+  hydbb_pipeline_2vcpu_16gb
+RS03AXBS-MJ03A-05-OBSBBA303:
+  hydbb_pipeline_2vcpu_16gb
+RS03CCAL-MJ03F-06-OBSBBA301:
+  hydbb_pipeline_2vcpu_16gb
+RS03ECAL-MJ03E-05-OBSSPA303:
+  hydbb_pipeline_2vcpu_16gb
+RS03ECAL-MJ03E-09-OBSBBA302:
+  hydbb_pipeline_2vcpu_16gb
+RS03ECAL-MJ03E-08-OBSSPA304:
+  hydbb_pipeline_2vcpu_16gb
+RS03INT2-MJ03D-05-OBSSPA305:
+  hydbb_pipeline_2vcpu_16gb
+RS01SUM1-LJ01B-08-OBSSPA101:
+  hydbb_pipeline_2vcpu_16gb
+RS01SUM1-LJ01B-07-OBSSPA102:
+  hydbb_pipeline_2vcpu_16gb
+RS01SUM1-LJ01B-06-OBSSPA103:
+  hydbb_pipeline_2vcpu_16gb
+RS01SUM1-LJ01B-05-OBSBBA101:
+  hydbb_pipeline_2vcpu_16gb
+RS01SLBS-MJ01A-05-OBSBBA102:
+  hydbb_pipeline_2vcpu_16gb
