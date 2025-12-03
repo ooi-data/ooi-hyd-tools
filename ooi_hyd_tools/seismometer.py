@@ -55,8 +55,28 @@ def run_obs_viz(refdes, date_str, obs_run_type):
     for span, start_date in start_dates.items(): 
 
         logger.info(f"Requesting data for {refdes} from {start_date} to {end_date} for {span}-day span")
-        st = obs.read(make_url(STATION_DICT[refdes], start_date, end_date))
-        data_dict[span] = st
+        try:
+            st = obs.read(make_url(STATION_DICT[refdes], start_date, end_date))
+            data_dict[span] = st
+        except obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError:
+            logger.warning("mseed file too large, requesting in 1 week chunks")
+            
+            chunked_stream_list = []
+            chunk_start = start_date
+            while chunk_start < end_date:
+                chunk_end = min(chunk_start + timedelta(days=7), end_date)
+                logger.info(f"Reading chunk: {chunk_start} → {chunk_end}")
+                st_chunk = obs.read(make_url(STATION_DICT[refdes], chunk_start, chunk_end))
+                chunked_stream_list.append(st_chunk)
+                chunk_start = chunk_end 
+            
+            st = obs.Stream()
+            logger.info(f"Combining {len(chunked_stream_list)} chunks into single stream")
+            for st_chunk in chunked_stream_list:
+                st += st_chunk
+            data_dict[span] = st
+
+                    
 
     for span, st in data_dict.items():
 
