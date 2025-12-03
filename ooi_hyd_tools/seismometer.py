@@ -61,14 +61,14 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         except obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError:
             logger.warning("mseed file too large, requesting in 1 week chunks")
             
-            chunked_stream_list = []
-            chunk_start = datetime.strptime(start_date, "%Y-%m-%dT00:00:00")
-            while chunk_start < datetime.strptime(end_date, "%Y-%m-%dT00:00:00"):
-                chunk_end = min(chunk_start + timedelta(days=7), datetime.strptime(end_date, "%Y-%m-%dT00:00:00"))
-                
-                logger.info(f"Reading chunk: {chunk_start.strftime('%Y-%m-%dT00:00:00')} → {chunk_end.strftime('%Y-%m-%dT00:00:00')}")
+            chunked_stream_list = [] # some complicated datetime formatting
+            chunk_start = datetime.strptime(start_date, "%Y-%m-%dT00:00:00") # datetime
+            while chunk_start < datetime.strptime(end_date, "%Y-%m-%dT00:00:00"): # datetimes
+                chunk_end = min(chunk_start + timedelta(days=7), datetime.strptime(end_date, "%Y-%m-%dT00:00:00")) # datetimes
 
-                st_chunk = obs.read(make_url(STATION_DICT[refdes], chunk_start.strftime("%Y-%m-%dT00:00:00"), chunk_end.strftime("%Y-%m-%dT00:00:00")))
+                logger.info(f"Reading chunk: {chunk_start.strftime('%Y-%m-%dT00:00:00')} → {chunk_end.strftime('%Y-%m-%dT00:00:00')}") # strings
+
+                st_chunk = obs.read(make_url(STATION_DICT[refdes], chunk_start.strftime("%Y-%m-%dT00:00:00"), chunk_end.strftime("%Y-%m-%dT00:00:00"))) # strings
 
                 chunked_stream_list.append(st_chunk)
                 chunk_start = chunk_end 
