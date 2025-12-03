@@ -35,7 +35,7 @@ def make_url(station, starttime, endtime):
     return f"https://service.iris.edu/fdsnws/dataselect/1/query?net={NETWORK}&sta={station}&starttime={starttime}&endtime={endtime}&format=miniseed&nodata=404"
 
 @task
-def run_obs_viz(refdes, date_str, obs_run_type):
+def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
     logger = select_logger()
 
     if obs_run_type == "daily":
@@ -62,11 +62,14 @@ def run_obs_viz(refdes, date_str, obs_run_type):
             logger.warning("mseed file too large, requesting in 1 week chunks")
             
             chunked_stream_list = []
-            chunk_start = start_date
-            while chunk_start < end_date:
-                chunk_end = min(chunk_start + timedelta(days=7), end_date)
-                logger.info(f"Reading chunk: {chunk_start} → {chunk_end}")
-                st_chunk = obs.read(make_url(STATION_DICT[refdes], chunk_start, chunk_end))
+            chunk_start = datetime.strptime(start_date, "%Y-%m-%dT00:00:00")
+            while chunk_start < datetime.strptime(end_date, "%Y-%m-%dT00:00:00"):
+                chunk_end = min(chunk_start + timedelta(days=7), datetime.strptime(end_date, "%Y-%m-%dT00:00:00"))
+                
+                logger.info(f"Reading chunk: {chunk_start.strftime('%Y-%m-%dT00:00:00')} → {chunk_end.strftime('%Y-%m-%dT00:00:00')}")
+
+                st_chunk = obs.read(make_url(STATION_DICT[refdes], chunk_start.strftime("%Y-%m-%dT00:00:00"), chunk_end.strftime("%Y-%m-%dT00:00:00")))
+
                 chunked_stream_list.append(st_chunk)
                 chunk_start = chunk_end 
             
