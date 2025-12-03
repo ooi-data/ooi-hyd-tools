@@ -43,6 +43,6 @@ RS01SUM1-LJ01B-07-OBSSPA102:
 RS01SUM1-LJ01B-06-OBSSPA103:
   hydbb_pipeline_2vcpu_16gb
 RS01SUM1-LJ01B-05-OBSBBA101:
-  hydbb_pipeline_2vcpu_16gb
+  hydbb_pipeline_4vcpu_30gb
 RS01SLBS-MJ01A-05-OBSBBA102:
   hydbb_pipeline_4vcpu_30gb
