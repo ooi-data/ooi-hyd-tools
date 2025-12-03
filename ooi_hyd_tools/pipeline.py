@@ -1,5 +1,5 @@
 import click
-import yaml 
+import yaml
 
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta, timezone
@@ -18,6 +18,7 @@ yesterday = yesterday_utc.strftime("%Y/%m/%d")
 
 with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
     config_dict = yaml.safe_load(f)
+
 
 @click.command()
 @click.option(
@@ -68,7 +69,7 @@ with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
     type=bool,
     default=True,
     show_default=True,
-    help="Apply hydrophone calibration before generateing hybrid millidecade spectrograms." 
+    help="Apply hydrophone calibration before generateing hybrid millidecade spectrograms."
     "Available for HYDBBA105, HYDBBA106, HYDBBA302, HYDBBA106 since program inception - moorings since 2025",
 )
 @click.option(
@@ -91,7 +92,7 @@ with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
     type=click.Choice(["audio", "viz", "all", "low_freq", "obs"], case_sensitive=False),
     default="all",
     show_default=True,
-    help="Which stage of pipeline to run: 'audio' converts mseed to audio for broadband hydrophoines," 
+    help="Which stage of pipeline to run: 'audio' converts mseed to audio for broadband hydrophoines,"
     " 'viz' converts audio to spectrograms for broadband, 'all' runs both 'audio' and 'viz' broadband routines."
     " 'low_freq' generates spectrograms for low freq hydrophones, 'obs' processes OBS seismometer data.",
 )
@@ -126,7 +127,6 @@ def run_acoustic_pipeline(
     parallel_in_cloud,
 ):
     if parallel_in_cloud:
-
         start_date = datetime.strptime(start_date, "%Y/%m/%d")
         if end_date is None:
             run_name = f"{hyd_refdes}_{start_date.strftime('%Y-%m-%d')}"

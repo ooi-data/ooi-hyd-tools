@@ -86,7 +86,7 @@ class HydrophoneDay:
         FS = fsspec.filesystem("http")
         print(mainurl)
         print(Path.cwd())
-        
+
         try:
             data_url_list = sorted(
                 f["name"]
@@ -113,7 +113,7 @@ class HydrophoneDay:
         if not data_url_list:
             print("No Data Available for Specified Time")
             return None
-        
+
         return data_url_list
 
     def read_and_repair_gaps(self, format):
@@ -226,7 +226,6 @@ def convert_mseed_to_audio(
             if (
                 st is not None
             ):  # TODO as of now we are throwing out 5 minute segments with gaps > fudge factor
-                
                 start_time = str(st[0].stats["starttime"])
                 sr = int(st[0].stats["sampling_rate"])
                 dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -258,7 +257,7 @@ def convert_mseed_to_audio(
         return hyd, png_dir, date_str
 
 
-@task # TODO remove this once FLAC are being distributed or sooner
+@task  # TODO remove this once FLAC are being distributed or sooner
 def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     logger = select_logger()
 
@@ -318,7 +317,7 @@ def acoustic_flow_oneday(
     obs_run_type,
 ):
     logger = select_logger()
-     # log python package versions on cloud machine
+    # log python package versions on cloud machine
     installed_packages = {dist.metadata["Name"]: dist.version for dist in distributions()}
     logger.info(f"Installed packages: {installed_packages}")
 

@@ -93,7 +93,7 @@ def gen_metadata(start_date, file_type, hyd_refdes):
 
 @task
 def find_cal_file(refdes, date_str):
-    logger=select_logger()
+    logger = select_logger()
     node = refdes[:8]
     current_utc_datetime = datetime.now(timezone.utc)
 

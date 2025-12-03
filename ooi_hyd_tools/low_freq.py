@@ -14,27 +14,28 @@ from typing import Optional
 from ooipy.request.hydrophone_request import get_acoustic_data_LF
 
 LOW_FREQ_DICT = {
-    'RS01SLBS-MJ01A-05-HYDLFA101': ['HYSB1', (44.50829, -125.40466)],
-    'RS03AXBS-MJ03A-05-HYDLFA301': ['AXBA1', (45.82051, -129.73671)], 
-    'RS01SUM1-LJ01B-05-HYDLFA104': ['HYS14', (44.56922, -125.14816)],
-    'RS03CCAL-MJ03F-06-HYDLFA305': ['AXCC1', (45.95479, -130.00932)],
-    'RS03ECAL-MJ03E-09-HYDLFA304': ['AXEC2', (45.93997, -129.73383)],
+    "RS01SLBS-MJ01A-05-HYDLFA101": ["HYSB1", (44.50829, -125.40466)],
+    "RS03AXBS-MJ03A-05-HYDLFA301": ["AXBA1", (45.82051, -129.73671)],
+    "RS01SUM1-LJ01B-05-HYDLFA104": ["HYS14", (44.56922, -125.14816)],
+    "RS03CCAL-MJ03F-06-HYDLFA305": ["AXCC1", (45.95479, -130.00932)],
+    "RS03ECAL-MJ03E-09-HYDLFA304": ["AXEC2", (45.93997, -129.73383)],
 }
 
-#TODO just call the packaged mbari function one changes are merged to mbari-pbp
-#TODO might not be straightforward because of the datetime bug?
+
+# TODO just call the packaged mbari function one changes are merged to mbari-pbp
+# TODO might not be straightforward because of the datetime bug?
 def plot_dataset_summary(
     ds: xr.Dataset,
     lat_lon_for_solpos: tuple[float, float] = (44.50829, -125.40466),
     title: str = None,
     ylim: tuple[int, int] = (0.1, 100),
-    yscale: str = 'log',
+    yscale: str = "log",
     cmlim: tuple[int, int] = (32, 108),
     dpi: int = 200,
-    cmap: str = 'rainbow',
+    cmap: str = "rainbow",
     jpeg_filename: Optional[str] = None,
     show: bool = False,
-):  
+):
     """
     Generate a summary plot from the given dataset.
     :param ds: Dataset to plot.
@@ -66,7 +67,9 @@ def plot_dataset_summary(
     seg.iloc[d] = 1
     # dusk / dawn (gray range)
     d = np.squeeze(np.where(np.logical_and(se <= 0, se >= -12)))
-    seg.iloc[d] = 1 - abs(se.iloc[d] / np.max(abs(se.iloc[d]), 0)) # TODO np.max in mbari version?
+    seg.iloc[d] = 1 - abs(
+        se.iloc[d] / np.max(abs(se.iloc[d]), 0)
+    )  # TODO np.max in mbari version?
     # TODO before the line above would error if only times at night...
     # Get the indices of the min and max
     seg1 = pd.Series.to_numpy(solpos.elevation)
@@ -77,9 +80,7 @@ def plot_dataset_summary(
 
     # plotting variables
 
-    psdlabl = (
-        r"Spectrum level (dB re 1 $\mu$Pa$\mathregular{^{2}}$ Hz$\mathregular{^{-1}}$)"
-    )
+    psdlabl = r"Spectrum level (dB re 1 $\mu$Pa$\mathregular{^{2}}$ Hz$\mathregular{^{-1}}$)"
     freqlabl = "Frequency (Hz)"
 
     # define percentiles
@@ -109,10 +110,12 @@ def plot_dataset_summary(
     ax0 = fig.add_subplot(spec[2])
     vmin, vmax = cmlim
 
-    time_values = md.date2num(ds['time'].values) #HACK is this matplotlib backend dependent? not 
+    time_values = md.date2num(
+        ds["time"].values
+    )  # HACK is this matplotlib backend dependent? not
     # in the original mbari function
     sg = plt.pcolormesh(
-        time_values, ds['frequency'], da, shading="nearest", cmap=cmap, vmin=vmin, vmax=vmax
+        time_values, ds["frequency"], da, shading="nearest", cmap=cmap, vmin=vmin, vmax=vmax
     )
     plt.yscale(yscale)
     plt.ylim(list(ylim))
@@ -137,9 +140,7 @@ def plot_dataset_summary(
     ax3 = fig.add_subplot(spec[0])
     ax3.pcolormesh(seg3, shading="flat", cmap="gray")
     ax3.annotate("Day", (maxidx, 25), weight="bold", ha="center", va="center")
-    ax3.annotate(
-        "Night", (minidx, 25), weight="bold", color="white", ha="center", va="center"
-    )
+    ax3.annotate("Night", (minidx, 25), weight="bold", color="white", ha="center", va="center")
     ax3.set_xticks([])
     ax3.set_yticks([])
 
@@ -157,9 +158,7 @@ def plot_dataset_summary(
     timax.set_ylim(0, 100)
     timax.set_yticks([])
     timax.set_xlim(xl)
-    timax.xaxis.set_major_formatter(
-        md.ConciseDateFormatter(timax.xaxis.get_major_locator())
-    )
+    timax.xaxis.set_major_formatter(md.ConciseDateFormatter(timax.xaxis.get_major_locator()))
 
     plt.gcf().text(0.5, 0.955, title, fontsize=14, horizontalalignment="center")
     plt.gcf().text(0.65, 0.91, "UTC")
@@ -175,7 +174,6 @@ def run_low_freq_oneday(
     hyd_refdes,
     date,
 ):
-    
     output_dir = Path("./output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -191,19 +189,17 @@ def run_low_freq_oneday(
         verbose=True,
     )
 
-    spec =  lf_data.compute_spectrogram(L=2048, avg_time=20, verbose=True)
-    ds = spec.to_dataset(name='psd')
-    
+    spec = lf_data.compute_spectrogram(L=2048, avg_time=20, verbose=True)
+    ds = spec.to_dataset(name="psd")
+
     plot_dataset_summary(
         ds,
         lat_lon_for_solpos=LOW_FREQ_DICT[hyd_refdes][1],
         title=hyd_refdes,
-        ylim=(0.1,100),
+        ylim=(0.1, 100),
         cmlim=(32, 108),
         jpeg_filename=f"{str(output_dir)}/{instrument}_{start_date}.png",
-        yscale='linear',
-        cmap='inferno',
+        yscale="linear",
+        cmap="inferno",
         show=True,
     )
-
-

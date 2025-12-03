@@ -6,7 +6,7 @@ from prefect import task
 
 from ooi_hyd_tools.utils import select_logger
 
-mpl.rcParams.update(mpl.rcParamsDefault) # reset matplotlib params to avoid latex bug
+mpl.rcParams.update(mpl.rcParamsDefault)  # reset matplotlib params to avoid latex bug
 
 
 PARAM_NAME = "groundvel_accel"
@@ -34,6 +34,7 @@ def make_url(station, starttime, endtime):
     # datetime format: 2025-11-04T00:00:00
     return f"https://service.iris.edu/fdsnws/dataselect/1/query?net={NETWORK}&sta={station}&starttime={starttime}&endtime={endtime}&format=miniseed&nodata=404"
 
+
 @task
 def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
     logger = select_logger()
@@ -49,46 +50,59 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
     date = datetime.strptime(date_str, "%Y/%m/%d")
     end_date = date.strftime("%Y-%m-%dT00:00:00")
 
-    start_dates = {span :(date - timedelta(days=span)).strftime("%Y-%m-%dT00:00:00") for span in time_spans.keys()}
+    start_dates = {
+        span: (date - timedelta(days=span)).strftime("%Y-%m-%dT00:00:00")
+        for span in time_spans.keys()
+    }
 
     data_dict = {}
-    for span, start_date in start_dates.items(): 
-
-        logger.info(f"Requesting data for {refdes} from {start_date} to {end_date} for {span}-day span")
+    for span, start_date in start_dates.items():
+        logger.info(
+            f"Requesting data for {refdes} from {start_date} to {end_date} for {span}-day span"
+        )
         try:
             st = obs.read(make_url(STATION_DICT[refdes], start_date, end_date))
             data_dict[span] = st
         except obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError:
             logger.warning("mseed file too large, requesting in 1 week chunks")
-            
-            chunked_stream_list = [] # some complicated datetime formatting
-            chunk_start = datetime.strptime(start_date, "%Y-%m-%dT00:00:00") # datetime
-            while chunk_start < datetime.strptime(end_date, "%Y-%m-%dT00:00:00"): # datetimes
-                chunk_end = min(chunk_start + timedelta(days=7), datetime.strptime(end_date, "%Y-%m-%dT00:00:00")) # datetimes
 
-                logger.info(f"Reading chunk: {chunk_start.strftime('%Y-%m-%dT00:00:00')} → {chunk_end.strftime('%Y-%m-%dT00:00:00')}") # strings
+            chunked_stream_list = []  # some complicated datetime formatting
+            chunk_start = datetime.strptime(start_date, "%Y-%m-%dT00:00:00")  # datetime
+            while chunk_start < datetime.strptime(end_date, "%Y-%m-%dT00:00:00"):  # datetimes
+                chunk_end = min(
+                    chunk_start + timedelta(days=7),
+                    datetime.strptime(end_date, "%Y-%m-%dT00:00:00"),
+                )  # datetimes
 
-                st_chunk = obs.read(make_url(STATION_DICT[refdes], chunk_start.strftime("%Y-%m-%dT00:00:00"), chunk_end.strftime("%Y-%m-%dT00:00:00"))) # strings
+                logger.info(
+                    f"Reading chunk: {chunk_start.strftime('%Y-%m-%dT00:00:00')} → {chunk_end.strftime('%Y-%m-%dT00:00:00')}"
+                )  # strings
+
+                st_chunk = obs.read(
+                    make_url(
+                        STATION_DICT[refdes],
+                        chunk_start.strftime("%Y-%m-%dT00:00:00"),
+                        chunk_end.strftime("%Y-%m-%dT00:00:00"),
+                    )
+                )  # strings
 
                 chunked_stream_list.append(st_chunk)
-                chunk_start = chunk_end 
-            
+                chunk_start = chunk_end
+
             st = obs.Stream()
             logger.info(f"Combining {len(chunked_stream_list)} chunks into single stream")
             for st_chunk in chunked_stream_list:
                 st += st_chunk
             data_dict[span] = st
 
-                    
-
     for span, st in data_dict.items():
-
         for tr in st:
-            tr.stats.sampling_rate = round(tr.stats.sampling_rate) # sometimes IRIS returns non-integer rates, which messes up plotting
-        
+            tr.stats.sampling_rate = round(
+                tr.stats.sampling_rate
+            )  # sometimes IRIS returns non-integer rates, which messes up plotting
+
         # TODO how to display empty streams?
         fig = st.plot(size=(1200, 1450), linewidth=0.05)
         fig.suptitle(refdes, fontsize=15, fontweight="bold")
         fpath = output_dir / f"{refdes}_{PARAM_NAME}_{time_spans[span]}_none_full.png"
         fig.savefig(fpath)
-

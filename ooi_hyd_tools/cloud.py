@@ -18,12 +18,10 @@ def sync_png_nc_to_s3(hyd_refdes, date, flag, local_dir=Path("./output")):
     fs_kwargs = get_s3_kwargs()
     s3_fs = fsspec.filesystem("s3", **fs_kwargs)
 
-
     def is_valid_file(fp: Path):
         filename = fp.name
 
         return instrument in filename and str(year) in filename
-    
 
     if "obs" not in flag:
         # Upload .nc files to hmb/YYYY/
@@ -41,10 +39,9 @@ def sync_png_nc_to_s3(hyd_refdes, date, flag, local_dir=Path("./output")):
                 s3_uri = f"{OOI_VIZ_BUCKET}/spectrograms/{year}/{instrument}/{fp.name}"
                 logger.info(f"Uploading {fp} to {s3_uri}")
                 s3_fs.put(str(fp), s3_uri)
-    
+
     elif "obs" in flag:
-        
-        obs_png_files = local_dir.rglob("*OBS*.png") # recursive glob for subdirs
+        obs_png_files = local_dir.rglob("*OBS*.png")  # recursive glob for subdirs
         for fp in obs_png_files:
             if fp.is_file():
                 s3_uri = f"{OOI_VIZ_BUCKET}/QAQC_plots/{hyd_refdes[:8]}/{fp.name}"
