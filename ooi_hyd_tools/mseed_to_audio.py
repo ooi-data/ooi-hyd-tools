@@ -100,7 +100,7 @@ class HydrophoneDay:
                     for f in FS.ls(f"{mainurl}/addendum")
                     if f["type"] == "file" and f["name"].endswith(".mseed")
                 )
-            except Exception as e:
+            except Exception:
                 print(f"No addendum for {day_str}")
                 addendum_list = []
 
