@@ -1,5 +1,7 @@
 import obspy as obs
 import matplotlib as mpl
+import matplotlib.dates as mdates
+
 from datetime import datetime, timedelta
 from pathlib import Path
 from prefect import task
@@ -104,5 +106,11 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         # TODO how to display empty streams?
         fig = st.plot(size=(1200, 1450), linewidth=0.05)
         fig.suptitle(refdes, fontsize=15, fontweight="bold")
+        # a tick for each day
+        for ax in fig.axes:
+            ax.xaxis.set_major_locator(mdates.DayLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+            fig.autofmt_xdate()  
+
         fpath = output_dir / f"{refdes}_{PARAM_NAME}_{time_spans[span]}_none_full.png"
         fig.savefig(fpath)
