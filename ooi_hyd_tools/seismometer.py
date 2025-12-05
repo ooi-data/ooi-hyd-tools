@@ -37,6 +37,31 @@ def make_url(station, starttime, endtime):
     return f"https://service.iris.edu/fdsnws/dataselect/1/query?net={NETWORK}&sta={station}&starttime={starttime}&endtime={endtime}&format=miniseed&nodata=404"
 
 
+def annotate_sampling_rate(fig, st):
+    """annotate sampling rate on each obspy subplot because obspy doesn't expose it nicely"""
+    for ax in fig.axes:
+        for txt in ax.texts:
+            trace_label = txt.get_text()
+            channel = trace_label.split("..")[-1]
+
+            # find the corresponding trace
+            matching_traces = [tr for tr in st if tr.stats.channel == channel]
+            if matching_traces:
+                sf = matching_traces[0].stats.sampling_rate
+                label = f"{sf} Hz"
+
+                ax.text(
+                    0.99,
+                    0.98,
+                    label,
+                    transform=ax.transAxes,
+                    ha="right",
+                    va="top",
+                    fontsize=9,
+                    bbox=dict(facecolor="white", alpha=0.7, edgecolor="none", pad=2),
+                )
+
+
 @task
 def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
     logger = select_logger()
@@ -107,13 +132,15 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         fig = st.plot(size=(1200, 1450), linewidth=0.05)
         fig.suptitle(refdes, fontsize=15, fontweight="bold")
         fig.supylabel("Digital Counts", x=-0.005)
-        for ax in fig.axes: # smaller y tick labels
+        for ax in fig.axes:  # smaller y tick labels
             ax.tick_params(axis="y", labelsize=6)
 
-        if span >= 7: # a tick for each day 
+        annotate_sampling_rate(fig, st)
+
+        if span >= 7:  # a tick for each day
             for ax in fig.axes:
                 ax.xaxis.set_major_locator(mdates.DayLocator())
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
 
         fpath = output_dir / f"{refdes}_{PARAM_NAME}_{time_spans[span]}_none_full.png"
         fig.savefig(fpath)
