@@ -107,8 +107,10 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         fig = st.plot(size=(1200, 1450), linewidth=0.05)
         fig.suptitle(refdes, fontsize=15, fontweight="bold")
         fig.supylabel("Digital Counts", x=-0.005)
-        # a tick for each day
-        if span >= 7:
+        for ax in fig.axes: # smaller y tick labels
+            ax.tick_params(axis="y", labelsize=6)
+
+        if span >= 7: # a tick for each day 
             for ax in fig.axes:
                 ax.xaxis.set_major_locator(mdates.DayLocator())
                 ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
