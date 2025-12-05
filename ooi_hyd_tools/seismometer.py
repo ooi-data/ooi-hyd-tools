@@ -51,8 +51,8 @@ def annotate_sampling_rate(fig, st):
                 label = f"{sf} Hz"
 
                 ax.text(
-                    0.99,
-                    0.98,
+                    0.97,
+                    0.97,
                     label,
                     transform=ax.transAxes,
                     ha="right",
@@ -131,7 +131,7 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         # TODO how to display empty streams?
         fig = st.plot(size=(1200, 1450), linewidth=0.05)
         fig.suptitle(refdes, fontsize=15, fontweight="bold")
-        fig.supylabel("Digital Counts", x=-0.005)
+        fig.supylabel("Digital Counts", fontsize=10, x=-0.01)
         for ax in fig.axes:  # smaller y tick labels
             ax.tick_params(axis="y", labelsize=6)
 
