@@ -107,10 +107,10 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         fig = st.plot(size=(1200, 1450), linewidth=0.05)
         fig.suptitle(refdes, fontsize=15, fontweight="bold")
         # a tick for each day
-        for ax in fig.axes:
-            ax.xaxis.set_major_locator(mdates.DayLocator())
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-            fig.autofmt_xdate()  
+        if span >= 7:
+            for ax in fig.axes:
+                ax.xaxis.set_major_locator(mdates.DayLocator())
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
 
         fpath = output_dir / f"{refdes}_{PARAM_NAME}_{time_spans[span]}_none_full.png"
         fig.savefig(fpath)
