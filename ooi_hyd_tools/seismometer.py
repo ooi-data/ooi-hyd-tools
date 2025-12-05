@@ -106,6 +106,7 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         # TODO how to display empty streams?
         fig = st.plot(size=(1200, 1450), linewidth=0.05)
         fig.suptitle(refdes, fontsize=15, fontweight="bold")
+        fig.supylabel("Digital Counts", x=-0.005)
         # a tick for each day
         if span >= 7:
             for ax in fig.axes:
