@@ -131,7 +131,7 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         # TODO how to display empty streams?
         fig = st.plot(size=(1200, 1450), linewidth=0.05)
         fig.suptitle(refdes, fontsize=15, fontweight="bold")
-        fig.supylabel("Digital Counts", fontsize=10, x=-0.01)
+        fig.supylabel("Digital Counts", fontsize=10, x=0.01)
         for ax in fig.axes:  # smaller y tick labels
             ax.tick_params(axis="y", labelsize=6)
 
