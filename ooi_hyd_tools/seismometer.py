@@ -74,7 +74,7 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
     output_dir = Path(f"./output/{refdes[:8]}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    date = datetime.strptime(date_str, "%Y/%m/%d")
+    date = datetime.strptime(date_str, "%Y/%m/%d") + timedelta(days=1) # end date should be yesterday UTC
     end_date = date.strftime("%Y-%m-%dT00:00:00")
 
     start_dates = {
