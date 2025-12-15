@@ -187,6 +187,7 @@ def run_low_freq_oneday(
         endtime=endtime,
         node=LOW_FREQ_DICT[hyd_refdes][0],
         verbose=True,
+        merge_traces=True,
     )
 
     spec = lf_data.compute_spectrogram(L=2048, avg_time=20, verbose=True)
