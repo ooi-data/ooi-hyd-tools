@@ -344,7 +344,7 @@ def acoustic_flow_oneday(
         audio_to_spec(date, "flac", hyd_refdes, apply_cals, freq_lims)
 
     if flag == "low_freq":
-        run_low_freq_oneday(hyd_refdes, date)
+        run_low_freq_oneday(hyd_refdes, date, logger)
 
     if flag == "obs":
         run_obs_viz(hyd_refdes, date, obs_run_type)

@@ -173,6 +173,7 @@ def plot_dataset_summary(
 def run_low_freq_oneday(
     hyd_refdes,
     date,
+    logger,
 ):
     output_dir = Path("./output")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -189,6 +190,10 @@ def run_low_freq_oneday(
         verbose=True,
         merge_traces=True,
     )
+
+    if lf_data is None: 
+        logger.warning("No data returned from Earthscope. Is a naval diversion in progress?")
+        return
 
     spec = lf_data.compute_spectrogram(L=2048, avg_time=20, verbose=True)
     ds = spec.to_dataset(name="psd")
