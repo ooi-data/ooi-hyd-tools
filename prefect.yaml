@@ -27,6 +27,7 @@ deployments:
     job_variables:
       cpu: 2048
       memory: 16384
+      image: jdduprey/ooi-hyd-tools:latest
   schedule:
   is_schedule_active: true
 - name: hydbb_pipeline_4vcpu_30gb
@@ -38,6 +39,8 @@ deployments:
   work_pool:
     name: hydrophone-pool
     work_queue_name:
+    job_variables:
+      image: jdduprey/ooi-hyd-tools:latest
   schedule:
   is_schedule_active: true
 - name: hydbb_pipeline_8vcpu_60gb
@@ -52,5 +55,6 @@ deployments:
     job_variables:
       cpu: 8192
       memory: 64424
+      image: jdduprey/ooi-hyd-tools:latest
   schedule:
   is_schedule_active: true
