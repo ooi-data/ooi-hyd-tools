@@ -1,3 +1,4 @@
+import requests
 import obspy as obs
 import matplotlib as mpl
 import matplotlib.dates as mdates
@@ -29,7 +30,7 @@ STATION_DICT = {
     "RS01SLBS-MJ01A-05-OBSBBA102": "HYSB1",
 }
 NETWORK = "OO"
-
+CHUNK_SIZE_DAYS = 5 # if timespan is too large for obspy/earthscope
 
 def make_url(station, starttime, endtime):
     "format url for IRIS data service"
@@ -90,14 +91,14 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         try:
             st = obs.read(make_url(STATION_DICT[refdes], start_date, end_date))
             data_dict[span] = st
-        except obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError:
-            logger.warning("mseed file too large, requesting in 1 week chunks")
+        except (obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError, requests.exceptions.HTTPError):
+            logger.warning(f"mseed file too large, requesting in {CHUNK_SIZE_DAYS}-day chunks")
 
             chunked_stream_list = []  # some complicated datetime formatting
             chunk_start = datetime.strptime(start_date, "%Y-%m-%dT00:00:00")  # datetime
             while chunk_start < datetime.strptime(end_date, "%Y-%m-%dT00:00:00"):  # datetimes
                 chunk_end = min(
-                    chunk_start + timedelta(days=7),
+                    chunk_start + timedelta(days=CHUNK_SIZE_DAYS),
                     datetime.strptime(end_date, "%Y-%m-%dT00:00:00"),
                 )  # datetimes
 
