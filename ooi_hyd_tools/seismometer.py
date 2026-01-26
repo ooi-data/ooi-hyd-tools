@@ -30,7 +30,7 @@ STATION_DICT = {
     "RS01SLBS-MJ01A-05-OBSBBA102": "HYSB1",
 }
 NETWORK = "OO"
-CHUNK_SIZE_DAYS = 5 # if timespan is too large for obspy/earthscope
+CHUNK_SIZE_DAYS = 4 # if timespan is too large for obspy/earthscope
 
 def make_url(station, starttime, endtime):
     "format url for IRIS data service"
