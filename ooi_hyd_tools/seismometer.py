@@ -91,7 +91,7 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         try:
             st = obs.read(make_url(STATION_DICT[refdes], start_date, end_date))
             data_dict[span] = st
-        except (obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError, requests.exceptions.HTTPError):
+        except (requests.exceptions.HTTPError): #obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError, 
             logger.warning(f"mseed file too large, requesting in {CHUNK_SIZE_DAYS}-day chunks")
 
             chunked_stream_list = []  # some complicated datetime formatting
