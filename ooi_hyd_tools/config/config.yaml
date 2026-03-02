@@ -29,7 +29,7 @@ RS03AXBS-MJ03A-05-OBSBBA303:
 RS03CCAL-MJ03F-06-OBSBBA301:
   hydbb_pipeline_4vcpu_30gb
 RS03ECAL-MJ03E-05-OBSSPA303:
-  hydbb_pipeline_2vcpu_16gb
+  hydbb_pipeline_4vcpu_30gb
 RS03ECAL-MJ03E-09-OBSBBA302:
   hydbb_pipeline_4vcpu_30gb
 RS03ECAL-MJ03E-08-OBSSPA304:
