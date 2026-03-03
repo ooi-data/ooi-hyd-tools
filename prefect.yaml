@@ -54,7 +54,7 @@ deployments:
     work_queue_name:
     job_variables:
       cpu: 8192
-      memory: 64424
+      memory: 61440
       image: jdduprey/ooi-hyd-tools:latest
   schedule:
   is_schedule_active: true

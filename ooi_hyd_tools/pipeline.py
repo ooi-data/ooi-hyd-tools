@@ -17,8 +17,9 @@ yesterday_utc = now_utc - timedelta(days=1)
 yesterday = yesterday_utc.strftime("%Y/%m/%d")
 
 with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
-    config_dict = yaml.safe_load(f)
-
+    HYD_CONFIG_DICT = yaml.safe_load(f)
+with open("./ooi_hyd_tools/config/obs_config.yaml", "r") as f:
+    OBS_CONFIG_DICT = yaml.safe_load(f)
 
 @click.command()
 @click.option(
@@ -125,7 +126,14 @@ def run_acoustic_pipeline(
     flag,
     obs_run_type,
     parallel_in_cloud,
-):
+):  
+    if flag == "obs":
+        config_dict = OBS_CONFIG_DICT
+    else:
+        config_dict = HYD_CONFIG_DICT
+
+    deployment_name = f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes]}" if flag != "obs" else f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes][obs_run_type]}"
+
     if parallel_in_cloud:
         start_date = datetime.strptime(start_date, "%Y/%m/%d")
         if end_date is None:
@@ -146,7 +154,7 @@ def run_acoustic_pipeline(
 
             logger.info(f"Launching workflow for {run_name} in cloud")
             run_deployment(
-                name=f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes]}",
+                name=deployment_name,
                 parameters=params,
                 flow_run_name=run_name,
                 timeout=TIMEOUT,
@@ -170,7 +178,7 @@ def run_acoustic_pipeline(
                 }
                 logger.info(f"Launching workflow for {run_name} in cloud")
                 run_deployment(
-                    name=f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes]}",
+                    name=deployment_name,
                     parameters=params,
                     flow_run_name=run_name,
                     timeout=TIMEOUT,

@@ -1,0 +1,39 @@
+RS03ASHS-MJ03B-06-OBSSPA301:
+  daily: hydbb_pipeline_2vcpu_16gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS03ASHS-MJ03B-05-OBSSPA302:
+  daily: hydbb_pipeline_2vcpu_16gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS03AXBS-MJ03A-05-OBSBBA303:
+  daily: hydbb_pipeline_4vcpu_30gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS03CCAL-MJ03F-06-OBSBBA301:
+  daily: hydbb_pipeline_4vcpu_30gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS03ECAL-MJ03E-05-OBSSPA303:
+  daily: hydbb_pipeline_4vcpu_30gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS03ECAL-MJ03E-09-OBSBBA302:
+  daily: hydbb_pipeline_4vcpu_30gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS03ECAL-MJ03E-08-OBSSPA304:
+  daily: hydbb_pipeline_4vcpu_30gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS03INT2-MJ03D-05-OBSSPA305:
+  daily: hydbb_pipeline_2vcpu_16gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS01SUM1-LJ01B-08-OBSSPA101:
+  daily: hydbb_pipeline_4vcpu_30gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS01SUM1-LJ01B-07-OBSSPA102:
+  daily: hydbb_pipeline_2vcpu_16gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS01SUM1-LJ01B-06-OBSSPA103:
+  daily: hydbb_pipeline_2vcpu_16gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS01SUM1-LJ01B-05-OBSBBA101:
+  daily: hydbb_pipeline_4vcpu_30gb
+  weekly: hydbb_pipeline_8vcpu_60gb
+RS01SLBS-MJ01A-05-OBSBBA102:
+  daily: hydbb_pipeline_4vcpu_30gb
+  weekly: hydbb_pipeline_8vcpu_60gb
