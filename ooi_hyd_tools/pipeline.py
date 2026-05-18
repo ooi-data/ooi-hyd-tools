@@ -1,6 +1,7 @@
 import click
 import yaml
 
+from abc import ABC, abstractmethod
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta, timezone
 from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
@@ -11,7 +12,6 @@ logger = select_logger()
 PREFECT_DEPLOYMENT = "acoustic-flow-oneday/"
 TIMEOUT = 12  # if lowered, the OOI raw data server will be overloaded
 
-# get yesterday's date in YYYY/MM/DD format
 now_utc = datetime.now(timezone.utc)
 yesterday_utc = now_utc - timedelta(days=1)
 yesterday = yesterday_utc.strftime("%Y/%m/%d")
@@ -20,6 +20,73 @@ with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
     HYD_CONFIG_DICT = yaml.safe_load(f)
 with open("./ooi_hyd_tools/config/obs_config.yaml", "r") as f:
     OBS_CONFIG_DICT = yaml.safe_load(f)
+
+
+def iter_dates(start: datetime, end: datetime | None):
+    current = start
+    end = end or start
+    while current <= end:
+        yield current
+        current += timedelta(days=1)
+
+
+def build_params(
+    date: datetime,
+    hyd_refdes,
+    format,
+    normalize_traces,
+    fudge_factor,
+    write_wav,
+    apply_cals,
+    freq_lims,
+    s3_sync,
+    flag,
+    obs_run_type,
+) -> dict:
+    return {
+        "hyd_refdes": hyd_refdes,
+        "date": date.strftime("%Y/%m/%d"),
+        "format": format,
+        "normalize_traces": normalize_traces,
+        "fudge_factor": fudge_factor,
+        "write_wav": write_wav,
+        "apply_cals": apply_cals,
+        "freq_lims": freq_lims,
+        "s3_sync": s3_sync,
+        "flag": flag,
+        "obs_run_type": obs_run_type,
+    }
+
+
+class Runner(ABC):
+    @abstractmethod
+    def run(self, date: datetime, params: dict) -> None: ...
+
+
+class LocalRunner(Runner):
+    def run(self, date: datetime, params: dict) -> None:
+        acoustic_flow_oneday(**params)
+
+
+class PrefectRunner(Runner):
+    def __init__(self, deployment_name: str):
+        self.deployment_name = deployment_name
+
+    def run(self, date: datetime, params: dict) -> None:
+        run_name = f"{params['hyd_refdes']}_{date.strftime('%Y-%m-%d')}"
+        logger.info(f"Launching workflow for {run_name} in cloud")
+        run_deployment(
+            name=self.deployment_name,
+            parameters=params,
+            flow_run_name=run_name,
+            timeout=TIMEOUT,
+        )
+
+
+class CeleryRunner(Runner):
+    def run(self, date: datetime, params: dict) -> None:
+        raise NotImplementedError("CeleryRunner is not yet implemented")
+
 
 @click.command()
 @click.option(
@@ -106,11 +173,12 @@ with open("./ooi_hyd_tools/config/obs_config.yaml", "r") as f:
     "also includes 30 day span.",
 )
 @click.option(
-    "--parallel-in-cloud",
-    type=bool,
-    default=False,
+    "--runner",
+    type=click.Choice(["local", "prefect", "celery"], case_sensitive=False),
+    default="local",
     show_default=True,
-    help="run prefect deployment in parellel in cloud, parallelized by date - need access to RCA cloud",
+    help="Runner backend: 'local' runs in-process, 'prefect' dispatches to Prefect cloud deployment parallelized by date,"
+    " 'celery' dispatches to Celery workers (not yet implemented).",
 )
 def run_acoustic_pipeline(
     start_date,
@@ -125,105 +193,41 @@ def run_acoustic_pipeline(
     s3_sync,
     flag,
     obs_run_type,
-    parallel_in_cloud,
-):  
-    if flag == "obs":
-        config_dict = OBS_CONFIG_DICT
-    else:
-        config_dict = HYD_CONFIG_DICT
+    runner,
+):
+    config_dict = OBS_CONFIG_DICT if flag == "obs" else HYD_CONFIG_DICT
+    deployment_name = (
+        f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes][obs_run_type]}"
+        if flag == "obs"
+        else f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes]}"
+    )
 
-    deployment_name = f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes]}" if flag != "obs" else f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes][obs_run_type]}"
+    runners = {
+        "local": LocalRunner(),
+        "prefect": PrefectRunner(deployment_name),
+        "celery": CeleryRunner(),
+    }
+    _runner = runners[runner]
 
-    if parallel_in_cloud:
-        start_date = datetime.strptime(start_date, "%Y/%m/%d")
-        if end_date is None:
-            run_name = f"{hyd_refdes}_{start_date.strftime('%Y-%m-%d')}"
-            params = {
-                "hyd_refdes": hyd_refdes,
-                "date": start_date.strftime("%Y/%m/%d"),
-                "format": format,
-                "normalize_traces": normalize_traces,
-                "fudge_factor": fudge_factor,
-                "write_wav": write_wav,
-                "apply_cals": apply_cals,
-                "freq_lims": freq_lims,
-                "s3_sync": s3_sync,
-                "flag": flag,
-                "obs_run_type": obs_run_type,
-            }
+    start_date = datetime.strptime(start_date, "%Y/%m/%d")
+    end_date = datetime.strptime(end_date, "%Y/%m/%d") if end_date else None
 
-            logger.info(f"Launching workflow for {run_name} in cloud")
-            run_deployment(
-                name=deployment_name,
-                parameters=params,
-                flow_run_name=run_name,
-                timeout=TIMEOUT,
-            )
-        else:
-            end_date = datetime.strptime(end_date, "%Y/%m/%d")
-            while start_date <= end_date:
-                run_name = f"{hyd_refdes}_{start_date.strftime('%Y-%m-%d')}"
-                params = {
-                    "hyd_refdes": hyd_refdes,
-                    "date": start_date.strftime("%Y/%m/%d"),
-                    "format": format,
-                    "normalize_traces": normalize_traces,
-                    "fudge_factor": fudge_factor,
-                    "write_wav": write_wav,
-                    "apply_cals": apply_cals,
-                    "freq_lims": freq_lims,
-                    "s3_sync": s3_sync,
-                    "flag": flag,
-                    "obs_run_type": obs_run_type,
-                }
-                logger.info(f"Launching workflow for {run_name} in cloud")
-                run_deployment(
-                    name=deployment_name,
-                    parameters=params,
-                    flow_run_name=run_name,
-                    timeout=TIMEOUT,
-                )
-                start_date += timedelta(days=1)
-
-    else:
-        start_date = datetime.strptime(start_date, "%Y/%m/%d")
-
-        if end_date is None:  # run a single day
-            acoustic_flow_oneday(
-                hyd_refdes=hyd_refdes,
-                date=start_date.strftime("%Y/%m/%d"),
-                format=format,
-                normalize_traces=normalize_traces,
-                fudge_factor=fudge_factor,
-                write_wav=write_wav,
-                apply_cals=apply_cals,
-                freq_lims=freq_lims,
-                s3_sync=s3_sync,
-                flag=flag,
-                obs_run_type=obs_run_type,
-            )
-
-        else:  # run a range of days
-            end_date = datetime.strptime(end_date, "%Y/%m/%d")
-
-            while start_date <= end_date:
-                acoustic_flow_oneday(
-                    hyd_refdes=hyd_refdes,
-                    date=start_date.strftime("%Y/%m/%d"),
-                    format=format,
-                    normalize_traces=normalize_traces,
-                    fudge_factor=fudge_factor,
-                    write_wav=write_wav,
-                    apply_cals=apply_cals,
-                    freq_lims=freq_lims,
-                    s3_sync=s3_sync,
-                    flag=flag,
-                    obs_run_type=obs_run_type,
-                )
-
-                start_date += timedelta(days=1)
+    for date in iter_dates(start_date, end_date):
+        params = build_params(
+            date=date,
+            hyd_refdes=hyd_refdes,
+            format=format,
+            normalize_traces=normalize_traces,
+            fudge_factor=fudge_factor,
+            write_wav=write_wav,
+            apply_cals=apply_cals,
+            freq_lims=freq_lims,
+            s3_sync=s3_sync,
+            flag=flag,
+            obs_run_type=obs_run_type,
+        )
+        _runner.run(date, params)
 
 
-# local debugging
 if __name__ == "__main__":
     run_acoustic_pipeline()
