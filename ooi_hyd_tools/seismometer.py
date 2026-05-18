@@ -30,7 +30,8 @@ STATION_DICT = {
     "RS01SLBS-MJ01A-05-OBSBBA102": "HYSB1",
 }
 NETWORK = "OO"
-CHUNK_SIZE_DAYS = 3 # if timespan is too large for obspy/earthscope
+CHUNK_SIZE_DAYS = 3  # if timespan is too large for obspy/earthscope
+
 
 def make_url(station, starttime, endtime):
     "format url for IRIS data service"
@@ -75,7 +76,9 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
     output_dir = Path(f"./output/{refdes[:8]}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    date = datetime.strptime(date_str, "%Y/%m/%d") + timedelta(days=1) # end date should be yesterday UTC
+    date = datetime.strptime(date_str, "%Y/%m/%d") + timedelta(
+        days=1
+    )  # end date should be yesterday UTC
     end_date = date.strftime("%Y-%m-%dT00:00:00")
 
     start_dates = {
@@ -91,7 +94,7 @@ def run_obs_viz(refdes: str, date_str: str, obs_run_type: str):
         try:
             st = obs.read(make_url(STATION_DICT[refdes], start_date, end_date))
             data_dict[span] = st
-        except (requests.exceptions.HTTPError): #obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError, 
+        except requests.exceptions.HTTPError:  # obs.io.mseed.ObsPyMSEEDFilesizeTooLargeError,
             logger.warning(f"mseed file too large, requesting in {CHUNK_SIZE_DAYS}-day chunks")
 
             chunked_stream_list = []  # some complicated datetime formatting

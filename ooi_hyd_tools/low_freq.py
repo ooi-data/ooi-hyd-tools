@@ -191,7 +191,7 @@ def run_low_freq_oneday(
         merge_traces=True,
     )
 
-    if lf_data is None: 
+    if lf_data is None:
         logger.warning("No data returned from Earthscope. Is a naval diversion in progress?")
         return
 
