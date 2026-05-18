@@ -40,6 +40,8 @@ acoustic-pipeline \
 Run with `--flag all` to generate MBARI-style hybrid millidecade spectrograms.
 `acoustic-pipeline --help` To learn more about each argument. 
 
+Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
+
 # OOI reference designators (refdes) for broadband hydrophones and approximate lat/lon:
 
 `"CE02SHBP-LJ01D-11-HYDBBA106": (44.63721, -124.30564), "Oregon Shelf"`
