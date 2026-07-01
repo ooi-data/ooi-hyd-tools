@@ -42,6 +42,25 @@ Run with `--flag all` to generate MBARI-style hybrid millidecade spectrograms.
 
 Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
 
+# How to extract audio of a single event
+
+Use the `event-audio` command to pulla a time window of broadband audio, run it through the same jitter/gap repair as the pipeline, and write a single continuous WAV to `./output/events` for listening. Handy for grabbing a nearby earthquake T-phase off a spectrogram.
+
+For example, to extract the M5.5 Blanco Fracture Zone earthquake recorded 2026/06/29 at Slope Base Seafloor (the event runs 11:35:44–11:42:04 UTC):
+
+```
+event-audio \
+--refdes "RS01SLBS-LJ01A-09-HYDBBA102" \
+--start "2026-06-29T11:35:44" \
+--end "2026-06-29T11:42:04" \
+--bandpass 2 1000 \
+--normalize \
+--speed 2 \
+--fade 1.0
+```
+
+`--speed` rewrites the sample rate `--bandpass LOW HIGH` isolates event of interest, `--normalize` boosts a quiet clip, and `--fade SEC` tapers both ends so it doesn't start/end on a click. `event-audio --help` for all arguments.
+
 # OOI reference designators (refdes) for broadband hydrophones and approximate lat/lon:
 
 `"CE02SHBP-LJ01D-11-HYDBBA106": (44.63721, -124.30564), "Oregon Shelf"`
