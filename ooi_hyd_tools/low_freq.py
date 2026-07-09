@@ -198,6 +198,11 @@ def run_low_freq_oneday(
     spec = lf_data.compute_spectrogram(L=2048, avg_time=20, verbose=True)
     ds = spec.to_dataset(name="psd")
 
+    # reindex onto a full-day time grid so days with gaps keep a consistent
+    # 00:00-24:00 x axis, with missing data shown as blank instead of a shrunken axis
+    full_day = pd.date_range(date, endtime, freq="20s", inclusive="left")
+    ds = ds.reindex(time=full_day, method="nearest", tolerance=pd.Timedelta("10s"))
+
     plot_dataset_summary(
         ds,
         lat_lon_for_solpos=LOW_FREQ_DICT[hyd_refdes][1],
