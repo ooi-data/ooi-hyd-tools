@@ -10,3 +10,6 @@ ooi_hyd_tools/data/
 output/
 metadata/json/
 downloads/
+
+# cal pdfs 
+metadata/.pdf_cache
