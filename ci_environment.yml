@@ -1,0 +1,15 @@
+# Minimal environment for CI checks that do not need the full pipeline. 
+name: ooi-hyd-tools-ci
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11 # pyproject: >=3.10,<3.12
+  - numpy<2
+  - pandas>=2.0.2,<3.0.0
+  - xarray=2023.8.0
+  - netcdf4=1.7.2
+  - h5py=3.14.0
+  - matplotlib>3.9
+  - pydantic>2
+  - click>=7
+  - pyyaml>=6

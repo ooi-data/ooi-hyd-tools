@@ -1,0 +1,26 @@
+name: cal-check
+
+# Fails if a committed cal netCDF no longer matches the YAML spec it was built from,
+# catching hand-edited .nc files and specs whose `cal-to-nc build` was never run.
+on:
+  pull_request:
+    paths:
+      - "metadata/cal_specs/**"
+      - "metadata/cals/**"
+      - "metadata/rca_correction_cals/**"
+      - "ooi_hyd_tools/cal_to_nc.py"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0} # login shell so the conda env is active
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: ci_environment.yml
+          cache-environment: true
+      - run: python -m ooi_hyd_tools.cal_to_nc check metadata/cal_specs/*.yaml

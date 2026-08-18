@@ -135,6 +135,11 @@ def find_cal_file(refdes, date_str):
 
     logger.info(f"{date_str} falls under deployment < {deployment_number[0]} > for {refdes}")
     logger.info(f"cal file at {cal_file_path_str}")
+
+    placeholder = xr.open_dataset(cal_file_path).attrs.get("placeholder")
+    if placeholder:
+        logger.warning(f"{cal_file_path.name} is a PLACEHOLDER cal: {placeholder}")
+
     return cal_file_path_str  # pbp wants a string not a path
 
 

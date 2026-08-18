@@ -29,6 +29,7 @@ dependencies = [
     "click>=7",
     "matplotlib>3.9",
     "pydantic>2",
+    "pyyaml>=6", 
     "prefect<3,>=2.5",
     "netcdf4==1.7.2", # danger! unpinning causes low level dep problems on linux
     "h5py==3.14.0", # danger! unpinning causes low level dep problems on linux
@@ -44,6 +45,7 @@ dependencies = [
 [project.scripts]
 acoustic-pipeline = "ooi_hyd_tools.pipeline:run_acoustic_pipeline"
 event-audio = "ooi_hyd_tools.events:extract_event"
+cal-to-nc = "ooi_hyd_tools.cal_to_nc:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ooi_hyd_tools"]

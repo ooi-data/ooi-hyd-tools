@@ -1,7 +1,14 @@
-The `cals` directory is the exact calibration values parsed from the calibration PDFS.
-The `rca_correction_cals` directory is the calibration sensitivities with a correction applied (128.9 dB) given the 
-parameters of the RCA broadband data - see the note in `PARSE_CAL_TO_NC.ipynb` or ooipy for more info.
+Exact calibration values as printed on the manufacturer sheets, in dB re 1 V/uPa.
 
-NOTE 
-CE04OSBP-LJ01C-11-HYDBBA105_10.nc is a placeholder (most recent available cal) but the correct cal for deployment 10 is not yet available.
-RS03AXBS-LJ03A-09-HYDBBA302_3.nc is a placeholder (calibration for same instrument at later date) due to original cal file missing.
+GENERATED - do not edit by hand. These are built by `cal-to-nc build` from the YAML specs in
+../cal_specs, which are the reviewable source of truth. Hand edits are overwritten by the next
+build and reported by `cal-to-nc check`.
+
+The pipeline does NOT read this directory. It reads ../rca_correction_cals, the same sensitivities
+with the +128.9 dB counts-per-volt correction applied. This copy exists as the archival record of
+what the sheet actually said.
+
+Each file records its origin in the netCDF attrs: source_spec (the YAML it came from), source_pdf
+(the sheet that YAML was transcribed from), asset_id, serial_number, and a placeholder reason when
+the cal is a stand-in for one that is unavailable. See "Hydrophone calibrations" in the repo README
+for the correction rationale, how a cal is selected for a given date, and current known issues.
