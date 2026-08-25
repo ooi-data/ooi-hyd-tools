@@ -43,16 +43,9 @@ Data for the audio stage of the pipeline is output to `./data` dir. Millidecade 
 ### FLAC bit depth
 
 OOI mseed carries 24-bit ADC counts right-justified in int32 (the integer *is* the count,
-full scale 2^23), but libsndfile's int32 API is left-justified (full scale 2^31). Writing
-counts straight to `PCM_24` therefore stored `count >> 8`, losing the bottom 8 bits of a
-signal that only occupies ~15 to begin with. Since v1.7 the writer shifts left by 8 first
-so the true count lands in the 24-bit word - verified bit-exact on round-trip. FLAC is
-never normalized; it is the archival product.
-
-Measured impact of the old truncation on spectrograms: ~1 dB at the quiet end of
-20-27 kHz, nothing below 12 kHz. FLAC written before v1.7 is 256x too small, so a cached
-day must be regenerated from mseed (`--flag audio`) before running `--flag viz` against
-it - otherwise the new voltage multiplier reads it +48.2 dB hot.
+full scale 2^23); libsndfile's int32 API is left-justified (full scale 2^31). Writing counts
+straight to `PCM_24` therefore stored `count >> 8`. Since v1.7 the writer shifts left by 8
+first so the true count lands in the 24-bit word.
 
 # How to extract audio of a single event
 
@@ -77,7 +70,7 @@ event-audio \
 
 Cal files live in `metadata/cals` as netCDF, one per instrument per deployment, named `{refdes}_{deployment}.nc`, holding the manufacturer sheet values in dB re 1 V/uPa. pbp reads the `sensitivity` variable (the 0/90 average for directional cals; `sensitivity_0`/`sensitivity_90` are kept as the archival record).
 
-The volts-to-counts conversion happens in code, not in the cal files: stock mbari-pbp reads the 24-bit FLAC as float normalized to full scale, and `audio_to_spec.py` sets `VOLTAGE_MULTIPLIER = 3` (the ADC's 3 V full scale), so sheet sensitivities apply unmodified. This replaces the retired `rca_correction_cals` directory of +128.9 dB (counts-per-volt) offset copies that paired with an int32-reading pbp fork — the two paths are verified bit-identical, up to the 0.031 dB rounding of 20log10(2^23/3) = 128.931 that the old baked-in constant carried.
+The volts-to-counts conversion happens in code, not in the cal files: stock mbari-pbp reads the 24-bit FLAC as float normalized to full scale, and `audio_to_spec.py` sets `VOLTAGE_MULTIPLIER = 3` (the ADC's 3 V full scale), so sheet sensitivities apply unmodified. This replaces the retired `rca_correction_cals` copies carrying a +128.9 dB offset, which paired with an int32-reading pbp fork. The two paths are bit-identical apart from 0.031 dB, the rounding in that old constant (exact: 20log10(2^23/3) = 128.931).
 
 ### Calibration yamls are the source of truth
 
@@ -112,11 +105,16 @@ Built files carry `source_spec`, `source_pdf`, `sensitivity_units`, and `placeho
 
 ### Known issues to fix
 
+Ordered by size of the error on delivered spectrograms.
+
 | issue | where | detail |
 |---|---|---|
-| Placeholder | `HYDBBA105` dep 10 | most recent available cal; the correct one is not yet published upstream |
-| Reprocess | `HYDBBA102` 2016-07-17 to 2017-07-29 | deployment 3 had been calibrated with deployment 2's hydrophone. Cal is now correct; products from that window still carry the old one, which was **-2.10 dB off on average, up to 5.40 dB at 90.4 kHz** |
 | Reprocess | `HYDBBA302` 2016-07-12 to 2017-07-31 | deployment 3 had been calibrated with a 2018 sheet postdating a hardware rebuild. Cal is now correct; products from that window are **-4.68 dB off on average, up to 8.65 dB at 190.7 kHz** |
+| Reprocess | `HYDBBA102` 2016-07-17 to 2017-07-29 | deployment 3 had been calibrated with deployment 2's hydrophone. Cal is now correct; products from that window carry the old one, **-2.10 dB off on average, up to 5.40 dB at 90.4 kHz** |
+| Cal gap | all instruments, 10 Hz - 10 kHz | sheet tables start at 10 kHz, so specs anchor 0 Hz to the 10 kHz value and everything below is a flat extrapolation. The certificates separately print a low-frequency spot value (e.g. -170.1 dB @ 26 Hz vs -171.05 @ 10 kHz on `ATOSU-58324-00015__20231213`), implying **~1 dB error across the band carrying most of the energy**. Unaddressed; affects all data equally, so it biases absolute levels but not trends |
+| Untracked | all instruments | cal sheets state a **preamp gain** (36 dB on the sheets seen) that is baked into the quoted sensitivity, but the specs have no field for it. A deployment calibrated or operated at a different gain would silently break the counts-per-volt chain |
+| Step change | all instruments, >12 kHz | the v1.7 bit-depth fix removed a **+0.96 dB bias at the quiet end of 20-27 kHz** (+0.45 at 12-20 kHz, nothing below 12 kHz). Within natural variability for a single measurement - the 20-27 kHz L05 spreads 7.6 dB within one day - but it is a *step* in a multi-year record. Note the reprocess date per instrument so trend work can account for it |
+| Placeholder | `HYDBBA105` dep 10 | most recent available cal; the correct one is not yet published upstream |
 
 Re-run `cal-to-nc build` after editing a spec. Calibrations exist for HYDBBA105, HYDBBA106, HYDBBA302 and HYDBBA303 since program inception; moorings since 2025.
 
