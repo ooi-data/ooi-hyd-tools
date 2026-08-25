@@ -24,8 +24,7 @@ dependencies = [
     "numpy<2",
     "soundfile==0.12.1",
     "tqdm>=4.67.1",
-    "obspy==1.4.1",
-    "setuptools<81", # obspy 1.4.1 needs pkg_resources, dropped in setuptools 81
+    "obspy==1.5.0", # 1.4.1 pins sqlalchemy<2, which blocks prefect 3
     "loguru>0.6.0",
     "click>=7",
     "matplotlib>3.9",
