@@ -22,7 +22,7 @@ Example:
 """
 
 SEG_SECONDS = 300  # each raw mseed segment is 5 minutes
-INT32_FULLSCALE = 2**31  # scale raw counts into [-1, 1]
+INT24_FULLSCALE = 2**23  # OOI counts are 24-bit; scale into [-1, 1]
 
 
 def _select_urls(urls, start, end):
@@ -45,7 +45,7 @@ def _gather_window(refdes, start, end, fudge_factor, logger):
         if hyd.mseed_urls:
             hyd.mseed_urls = _select_urls(hyd.mseed_urls, start, end)
             logger.info(f"{day_str}: {len(hyd.mseed_urls)} segments in window")
-            hyd.read_and_repair_gaps(format="FLOAT")
+            hyd.read_and_repair_gaps()
             traces += [cs[0] for cs in hyd.clean_list if cs is not None]
         day += timedelta(days=1)
     return traces
@@ -86,6 +86,8 @@ def extract_event(refdes, start, end, bandpass, normalize, gain_db, speed, fade,
         return
 
     st = obs.Stream(traces=traces)
+    for tr in st:  # repair returns raw int32 counts; detrend/filter need float
+        tr.data = tr.data.astype(np.float64)
     st.merge(method=1, fill_value=0)
 
     if bandpass:
@@ -98,7 +100,7 @@ def extract_event(refdes, start, end, bandpass, normalize, gain_db, speed, fade,
     tr = st[0]
     sr = int(round(tr.stats.sampling_rate))
 
-    data = tr.data.astype(np.float64) / INT32_FULLSCALE
+    data = tr.data / INT24_FULLSCALE
     if normalize:
         data = 0.99 * data / np.abs(data).max()
     if gain_db:

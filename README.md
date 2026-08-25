@@ -33,14 +33,26 @@ acoustic-pipeline \
 --hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
 --start-date "2025/02/20" \
 --end-date "2025/03/15" \
---format PCM_24 \
---flag audio \
---fudge-factor 0.021
+--flag audio
 ```
 Run with `--flag all` to generate hybrid millidecade spectrograms.
 `acoustic-pipeline --help` To learn more about each argument. 
 
 Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
+
+### FLAC bit depth
+
+OOI mseed carries 24-bit ADC counts right-justified in int32 (the integer *is* the count,
+full scale 2^23), but libsndfile's int32 API is left-justified (full scale 2^31). Writing
+counts straight to `PCM_24` therefore stored `count >> 8`, losing the bottom 8 bits of a
+signal that only occupies ~15 to begin with. Since v1.7 the writer shifts left by 8 first
+so the true count lands in the 24-bit word - verified bit-exact on round-trip. FLAC is
+never normalized; it is the archival product.
+
+Measured impact of the old truncation on spectrograms: ~1 dB at the quiet end of
+20-27 kHz, nothing below 12 kHz. FLAC written before v1.7 is 256x too small, so a cached
+day must be regenerated from mseed (`--flag audio`) before running `--flag viz` against
+it - otherwise the new voltage multiplier reads it +48.2 dB hot.
 
 # How to extract audio of a single event
 
@@ -63,12 +75,9 @@ event-audio \
 
 # Hydrophone calibrations
 
-Cal files live in `./metadata` as netCDF, one per instrument per deployment, named `{refdes}_{deployment}.nc`:
+Cal files live in `metadata/cals` as netCDF, one per instrument per deployment, named `{refdes}_{deployment}.nc`, holding the manufacturer sheet values in dB re 1 V/uPa. pbp reads the `sensitivity` variable (the 0/90 average for directional cals; `sensitivity_0`/`sensitivity_90` are kept as the archival record).
 
-- `metadata/cals` — exact values from the manufacturer PDF, in dB re 1 V/uPa.
-- `metadata/rca_correction_cals` — the same with **+128.9 dB** applied, in dB re 1 count/uPa. **This is what the pipeline reads.**
-
-The offset converts volts to the digital counts the archive stores: the 24-bit / 3 V ADC gives 8388608 / 3 = 2796202 counts per volt = 20log10(2796202) = 128.9 dB. Because it is baked into these files, `audio_to_spec.py` uses `VOLTAGE_MULTIPLIER = 1` when handing off data to mbari-pbp.
+The volts-to-counts conversion happens in code, not in the cal files: stock mbari-pbp reads the 24-bit FLAC as float normalized to full scale, and `audio_to_spec.py` sets `VOLTAGE_MULTIPLIER = 3` (the ADC's 3 V full scale), so sheet sensitivities apply unmodified. This replaces the retired `rca_correction_cals` directory of +128.9 dB (counts-per-volt) offset copies that paired with an int32-reading pbp fork — the two paths are verified bit-identical, up to the 0.031 dB rounding of 20log10(2^23/3) = 128.931 that the old baked-in constant carried.
 
 ### Calibration yamls are the source of truth
 
@@ -76,12 +85,12 @@ The offset converts volts to the digital counts the archive stores: the 24-bit /
 
 ```
 cal-to-nc template > metadata/cal_specs/{refdes}.yaml   # scaffold, fill in from the PDF
-cal-to-nc build metadata/cal_specs/*.yaml --plot        # write both .nc plus a QA plot
+cal-to-nc build metadata/cal_specs/*.yaml --plot        # write the .nc plus a QA plot
 cal-to-nc check metadata/cal_specs/*.yaml               # CI: committed .nc still match specs
 cal-to-nc from-nc {refdes}                              # backfill a spec from existing .nc
 ```
 
-Add a deployment by appending a block under `deployments` and re-running `build`, which warns if mean sensitivity jumps more than 6 dB between consecutive deployments. Specs take either a single `sens` or directional `sens0`/`sens90` (averaged before the offset). Frequencies default to kHz; set `freq_units: Hz` otherwise. Validation rejects length mismatches, non-ascending frequencies, and values outside -220 to -120 dB.
+Add a deployment by appending a block under `deployments` and re-running `build`, which warns if mean sensitivity jumps more than 6 dB between consecutive deployments. Specs take either a single `sens` or directional `sens0`/`sens90` (averaged into `sensitivity`). Frequencies default to kHz; set `freq_units: Hz` otherwise. Validation rejects length mismatches, non-ascending frequencies, and values outside -220 to -120 dB.
 
 Transcribing the PDF to yaml is the manual step.
 
@@ -97,9 +106,9 @@ https://github.com/OOI-CabledArray/calibrationFiles/tree/master/HYDBBA — named
 https://raw.githubusercontent.com/oceanobservatories/asset-management/refs/heads/master/deployment/{node}_Deploy.csv
 ```
 
-`{node}` is the first 8 characters of the refdes. The deployment whose window contains the date picks `rca_correction_cals/{refdes}_{deployment}.nc`; a missing file raises rather than silently producing uncalibrated output. That CSV's `sensor.uid` column also gives which physical asset was deployed, which is how a deployment maps to a cal sheet. `--apply-cals false` skips calibration.
+`{node}` is the first 8 characters of the refdes. The deployment whose window contains the date picks `cals/{refdes}_{deployment}.nc`; a missing file raises rather than silently producing uncalibrated output. That CSV's `sensor.uid` column also gives which physical asset was deployed, which is how a deployment maps to a cal sheet. `--apply-cals false` skips calibration.
 
-Built files carry `source_spec`, `source_pdf`, `sensitivity_units`, `rca_bb_offset`, and `placeholder` when the cal is a stand-in — `find_cal_file` logs a run-time warning on placeholders.
+Built files carry `source_spec`, `source_pdf`, `sensitivity_units`, and `placeholder` when the cal is a stand-in — `find_cal_file` logs a run-time warning on placeholders.
 
 ### Known issues to fix
 

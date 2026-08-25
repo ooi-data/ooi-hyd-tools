@@ -106,17 +106,18 @@ class CeleryRunner(Runner):
 )
 @click.option(
     "--format",
-    type=click.Choice(["FLOAT", "PCM_24", "PCM_32"], case_sensitive=False),
-    default="PCM_24",
+    type=click.Choice(["FLOAT", "PCM_32"], case_sensitive=False),
+    default="PCM_32",
     show_default=True,
-    help="format subtype (FLOAT, PCM_24, or PCM_32).",
+    help="Subtype for the optional WAV copies (--write-wav). FLAC output is always "
+    "PCM_24 with counts left-justified into the 24-bit word.",
 )
 @click.option(
     "--normalize-traces",
     type=bool,
     default=False,
     show_default=True,
-    help="Set to True to normalize audio data in 5 minute incriments.",
+    help="Normalize the optional WAV copies for listening. FLAC is never normalized.",
 )
 @click.option(
     "--fudge-factor",

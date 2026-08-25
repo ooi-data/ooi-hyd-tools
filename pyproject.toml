@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ooi-hyd-tools"
-version = "1.6.1"
+version = "1.7.0"
 authors = [{ name="Joe Duprey", email="jduprey@uw.edu" }]
 readme = "README.md"
 description = "Tools and scripts for working with OOI hydrophone data"
@@ -24,22 +24,23 @@ dependencies = [
     "numpy<2",
     "soundfile==0.12.1",
     "tqdm>=4.67.1",
-    "obspy==1.4.1",
+    "obspy==1.5.0", # 1.4.1 pins sqlalchemy<2, which blocks prefect 3
     "loguru>0.6.0",
     "click>=7",
     "matplotlib>3.9",
     "pydantic>2",
     "pyyaml>=6", 
-    "prefect<3,>=2.5",
+    "prefect>=3.8",
     "netcdf4==1.7.2", # danger! unpinning causes low level dep problems on linux
     "h5py==3.14.0", # danger! unpinning causes low level dep problems on linux
     "polars>1.8",
     "awscli==1.33.44",
     "scipy>=1.10.0",
     "ooipy>=1.2.5",
-    "mbari-pbp @ git+https://git@github.com/jdduprey/pbp.git@ooi-qaqc",
-    #"mbari-pbp @ git+https://github.com/mbari-org/pbp.git@main"
-
+    # stock pbp reads audio as float64 normalized to full scale; verified bit-identical
+    # to the retired jdduprey/pbp@ooi-qaqc int32 fork when paired with VOLTAGE_MULTIPLIER=3
+    # and the exact (dB re 1 V/uPa) cal files. 1.8.5 is the version that was verified.
+    "mbari-pbp==1.8.5",
 ]
 
 [project.scripts]

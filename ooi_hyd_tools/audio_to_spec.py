@@ -19,11 +19,19 @@ from ooi_hyd_tools.utils import select_logger
 
 plt.switch_backend("Agg")  # use non-interactive backend
 # hydrophone specification
-VOLTAGE_MULTIPLIER = 1
-# NOTE OOI broadband hydrophone output is 24-bit ADC with maximum 3 volts.
-# So, there are 8388608 / 3 = 2796202 counts per volt which is equivalent
-# to 128.9 dB (=20log10(2796202)). This offset is applied to the cal files in rca_correction_cals
-# so here we use a voltage multiplier of 1.
+VOLTAGE_MULTIPLIER = 3
+# NOTE (original, per Shima Abadi) OOI broadband hydrophone output is
+# 24-bit ADC with maximum 3 volts. So, there are 8388608 / 3 = 2796202 counts per volt
+# which is equivalent to 128.9 dB (=20log10(2796202)). This offset is applied to the cal
+# files in rca_correction_cals so here we USED a voltage multiplier of 1.
+
+# UPDATE Aug 2026
+# That offset and this multiplier are the same constant, just applied in different places:
+# 20log10(2**23/3) = 128.931 dB is counts-per-volt, whose full-scale term is the 3 V above.
+# Stock pbp reads the 24-bit FLAC as float64 normalized to full scale (+-1.0 = +-2**23
+# counts), so multiplying by 3 converts to volts and the sheet sensitivities (dB re 1
+# V/uPa) in metadata/cals apply unmodified - no rca_correction_cals copies needed. Verified
+# bit-identical to the old int32-fork path over a full day of HYDBBA105.
 DB_RANGE = (45, 120)
 
 # metadata files for output netCDF data products
@@ -125,9 +133,7 @@ def find_cal_file(refdes, date_str):
     deploy_df = df.filter((pl.col("startDateTime") < date) & (pl.col("stopDateTime") > date))
     deployment_number = deploy_df["deploymentNumber"]
 
-    cal_file_path_str = (
-        f"./metadata/rca_correction_cals/{refdes}_{str(deployment_number[0])}.nc"
-    )
+    cal_file_path_str = f"./metadata/cals/{refdes}_{str(deployment_number[0])}.nc"
     cal_file_path = Path(cal_file_path_str)
 
     if not cal_file_path.exists():

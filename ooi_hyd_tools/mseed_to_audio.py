@@ -20,27 +20,34 @@ from ooi_hyd_tools.seismometer import run_obs_viz
 
 
 """
-This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive 
-into 5 minute flac files using obspy and soundfile. Flac file names are written to 
+This script converts OOI hydrophone data stored as mseed files on the OOI raw data archive
+into 5 minute flac files using obspy and soundfile. Flac file names are written to
 "./data/flac/YYYY_MM_DD/INSTRUMENT".
 Files are named in the datetime format "INSTRUMENT_YYMMDDHHMMSS"
-The user can set the following processing parameters: 
+The user can set the following processing parameters:
 
 HYD_REFDES
-    The OOI reference designator for the hydrophone you want to process. For example, 
-    "CE04OSBP-LJ01C-11-HYDBBA105" is the OOI hydrophone at the Oregon Offshore (600m) site. 
+    The OOI reference designator for the hydrophone you want to process. For example,
+    "CE04OSBP-LJ01C-11-HYDBBA105" is the OOI hydrophone at the Oregon Offshore (600m) site.
     "CE04OSBP-LJ01C-11-HYDBBA110" is the co-located Ocean Sonics test hydrophone at that same site.
 DATE
     The day of hydrophone data you would like to convert to wav in the date format
     YYYY/MM/DD.
 FORMAT
-    'PCM_32' or 'FLOAT' The data subtype format for the resulting WAV files. OOI data is int32, 
-     but some media players cannot import in this format. See `sf.available_subtypes('WAV')`
+    Data subtype for the optional WAV copies ('PCM_32' or 'FLOAT'). FLAC output is always
+    PCM_24 - see INT24_SHIFT for why the counts are left-shifted first.
 NORMALIZE_TRACES
-    Option to normalize signal by mean of each 5 minute trace. If normalized float32 data type is needed.
+    Option to normalize the optional WAV copies for listening. FLAC is never normalized;
+    it is the archival product and must preserve absolute counts.
 
 NOTE See cli in pipeline.py for additional help and context.
 """
+
+# OOI mseed carries 24-bit ADC counts right-justified in int32 (the integer IS the count,
+# full scale 2**23). libsndfile's int32 API is left-justified (full scale 2**31), so writing
+# counts straight to PCM_24 makes it store count >> 8 and the bottom 8 bits are lost. Shifting
+# left by 8 first cancels that, and the true count lands in the 24-bit word.
+INT24_SHIFT = 8
 
 
 def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
@@ -116,13 +123,12 @@ class HydrophoneDay:
 
         return data_url_list
 
-    def read_and_repair_gaps(self, format):
+    def read_and_repair_gaps(self):
         if self.mseed_urls is None:
             return None
         else:
             self.clean_list = _map_concurrency(
                 func=self._deal_with_gaps_and_overlaps,
-                args=format,
                 iterator=self.mseed_urls,
                 verbose=False,
             )
@@ -146,14 +152,10 @@ class HydrophoneDay:
 
         return cs
 
-    def _deal_with_gaps_and_overlaps(self, url, format):
-        if format not in ["PCM_32", "PCM_24", "FLOAT"]:
-            raise ValueError("Invalid wav data subtype. Please specify 'PCM_32' or 'FLOAT'")
-        # first read in mseed
-        if format == "PCM_32" or format == "PCM_24":
-            st = obs.read(url, apply_calib=False, dtype=np.int32)
-        if format == "FLOAT":
-            st = obs.read(url, apply_calib=False, dtype=np.float64)
+    def _deal_with_gaps_and_overlaps(self, url, args=()):
+        # always read as int32: these are 24-bit ADC counts and the FLAC writer needs
+        # integers to left-justify. WAV subtype conversion happens at write time.
+        st = obs.read(url, apply_calib=False, dtype=np.int32)
 
         trace_id = st[0].stats["starttime"]
         print("total traces before concatenation: " + str(len(st)), flush=True)
@@ -206,7 +208,7 @@ def convert_mseed_to_audio(
     logger = select_logger()
     hyd = HydrophoneDay(hyd_refdes, date, fudge_factor)
 
-    hyd.read_and_repair_gaps(format=format)
+    hyd.read_and_repair_gaps()
 
     if hyd.clean_list is None:  # retun None if no data available on that day
         return None, None, None
@@ -232,27 +234,21 @@ def convert_mseed_to_audio(
 
                 new_format = dt.strftime("%Y%m%d_%H%M%S")  # dt.strftime("%y%m%d%H%M%S%z")
 
-                if format == "FLOAT":
-                    st[0].data = st[0].data.astype(np.float64)
-
-                if normalize_traces:
-                    st = st.normalize()
-
-                # print(type(st[0].data[0]))
-                # print(st[0].data[:5])
-
                 flac_path = flac_dir / f"{hyd_refdes[-9:]}_{new_format}.flac"
                 wav_path = wav_dir / f"{hyd_refdes[-9:]}_{new_format}.wav"
 
+                # counts are left-shifted so PCM_24 stores them intact, see INT24_SHIFT
                 print(str(flac_path))
-                sf.write(
-                    flac_path, st[0].data, sr, subtype=format
-                )  # use sf package to write instead of obspy
+                sf.write(flac_path, st[0].data << INT24_SHIFT, sr, subtype="PCM_24")
+
                 if write_wav:
                     print(str(wav_path))
-                    sf.write(
-                        wav_path, st[0].data, sr, subtype=format
-                    )  # use sf package to write instead of obspy
+                    data = st[0].data
+                    if normalize_traces:  # listening copy only
+                        data = data / np.abs(data).max()
+                        sf.write(wav_path, data, sr, subtype="FLOAT")
+                    else:
+                        sf.write(wav_path, data, sr, subtype=format)
 
         return hyd, png_dir, date_str
 
@@ -268,25 +264,21 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     example_time = example_datetime.strftime("%Y%m%d_%H%M%S")
     logger.info(f"Using {example_time} for logging and sanity checking")
 
-    if format == "FLOAT":
-        dtype = "float64"
-    else:
-        dtype = "int32"
-
     wav, _ = sf.read(
         f"data/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav",
-        dtype=dtype,
+        dtype="int32",
     )
     logger.info(f"wav data sanity check {wav}")
 
     flac, _ = sf.read(
         f"data/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac",
-        dtype=dtype,
+        dtype="int32",
     )
+    flac = flac >> INT24_SHIFT  # undo the left-justification to recover raw counts
     logger.info(f"flac data sanity check {flac}")
 
-    wavflac_ratio = wav / flac
-    logger.info(f"wav/flac ratio: {wavflac_ratio}")
+    diff = wav - flac
+    logger.info(f"wav - flac max abs difference: {np.abs(diff).max()} counts (expect 0)")
 
     logger.info("saving some comparison plots")
     plt.plot(wav[:200], linewidth=0.5)
@@ -296,7 +288,7 @@ def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
     plt.savefig(compare_path, dpi=300, bbox_inches="tight")
     plt.close()
 
-    plt.plot(wav[:200] - flac[:200])
+    plt.plot(diff[:200])
     diff_path = png_dir / f"{hyd.file_str}_flacwav_diff.png"
     plt.savefig(diff_path, dpi=300, bbox_inches="tight")
     plt.close()
@@ -337,7 +329,7 @@ def acoustic_flow_oneday(
         # first element of list is different each time due to multithreading - could add sort step?
         logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
 
-        if write_wav:
+        if write_wav and not normalize_traces:
             compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str)
 
     if flag == "viz" or flag == "all":
