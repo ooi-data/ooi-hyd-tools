@@ -25,13 +25,9 @@ VOLTAGE_MULTIPLIER = 3
 # which is equivalent to 128.9 dB (=20log10(2796202)). This offset is applied to the cal
 # files in rca_correction_cals so here we USED a voltage multiplier of 1.
 
-# UPDATE Aug 2026
-# That offset and this multiplier are the same constant, just applied in different places:
-# 20log10(2**23/3) = 128.931 dB is counts-per-volt, whose full-scale term is the 3 V above.
-# Stock pbp reads the 24-bit FLAC as float64 normalized to full scale (+-1.0 = +-2**23
-# counts), so multiplying by 3 converts to volts and the sheet sensitivities (dB re 1
-# V/uPa) in metadata/cals apply unmodified - no rca_correction_cals copies needed. Verified
-# bit-identical to the old int32-fork path over a full day of HYDBBA105.
+# UPDATE Aug 2026: same constant, applied in a different place. Stock pbp reads the FLAC
+# as float normalized to full scale (+-1.0 = +-2**23 counts), so multiplying by 3 gives
+# volts and the sheet sensitivities apply unmodified - no rca_correction_cals needed.
 DB_RANGE = (45, 120)
 
 # metadata files for output netCDF data products

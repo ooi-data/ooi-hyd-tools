@@ -14,11 +14,10 @@ Build the netCDF cal files the pipeline uses from a reviewable YAML spec:
 
     metadata/cals/{refdes}_{deployment}.nc   manufacturer values in dB re 1 V/uPa
 
-Every file carries a `sensitivity` variable (the 0/90 average for directional cals),
-which is the only variable pbp reads; directional files keep sensitivity_0/sensitivity_90
-as the archival record of the sheet. The volts-to-counts conversion is no longer baked in
-here - stock pbp reads normalized float audio and audio_to_spec.py converts to volts with
-VOLTAGE_MULTIPLIER = 3 (24-bit / 3 V full scale), so the sheet values apply unmodified.
+Every file carries a `sensitivity` variable (the 0/90 average for directional cals) - the
+only variable pbp reads. Directional files keep sensitivity_0/sensitivity_90 as the record
+of the sheet. No volts-to-counts offset is applied here; audio_to_spec.py handles that with
+VOLTAGE_MULTIPLIER.
 
 One spec per instrument holds every deployment, so drift between deployments is visible in one
 diff. The PDF -> YAML transcription stays a human step: a hallucinated sensitivity silently biases

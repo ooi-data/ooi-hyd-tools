@@ -34,19 +34,17 @@ DATE
     The day of hydrophone data you would like to convert to wav in the date format
     YYYY/MM/DD.
 FORMAT
-    Data subtype for the optional WAV copies ('PCM_32' or 'FLOAT'). FLAC output is always
-    PCM_24 - see INT24_SHIFT for why the counts are left-shifted first.
+    Data subtype for the optional WAV copies ('PCM_32' or 'FLOAT'). FLAC is always PCM_24.
 NORMALIZE_TRACES
     Option to normalize the optional WAV copies for listening. FLAC is never normalized;
-    it is the archival product and must preserve absolute counts.
+    it must preserve absolute counts for the calibration to hold.
 
 NOTE See cli in pipeline.py for additional help and context.
 """
 
-# OOI mseed carries 24-bit ADC counts right-justified in int32 (the integer IS the count,
-# full scale 2**23). libsndfile's int32 API is left-justified (full scale 2**31), so writing
-# counts straight to PCM_24 makes it store count >> 8 and the bottom 8 bits are lost. Shifting
-# left by 8 first cancels that, and the true count lands in the 24-bit word.
+# mseed counts are 24-bit right-justified in int32 (full scale 2**23); libsndfile's int32
+# API is left-justified (full scale 2**31), so writing counts straight to PCM_24 stores
+# count >> 8. Shifting left by 8 first cancels that.
 INT24_SHIFT = 8
 
 
@@ -153,8 +151,7 @@ class HydrophoneDay:
         return cs
 
     def _deal_with_gaps_and_overlaps(self, url, args=()):
-        # always read as int32: these are 24-bit ADC counts and the FLAC writer needs
-        # integers to left-justify. WAV subtype conversion happens at write time.
+        # always int32: the writer needs integer counts to left-justify (see INT24_SHIFT)
         st = obs.read(url, apply_calib=False, dtype=np.int32)
 
         trace_id = st[0].stats["starttime"]
