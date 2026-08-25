@@ -7,7 +7,6 @@ on:
     paths:
       - "metadata/cal_specs/**"
       - "metadata/cals/**"
-      - "metadata/rca_correction_cals/**"
       - "ooi_hyd_tools/cal_to_nc.py"
   workflow_dispatch:
 

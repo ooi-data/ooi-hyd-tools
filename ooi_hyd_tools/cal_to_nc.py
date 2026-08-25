@@ -10,10 +10,15 @@ from typing import List, Optional, Dict
 from pydantic import BaseModel, constr, model_validator
 
 """
-Build the two netCDF cal files the pipeline uses from a reviewable YAML spec:
+Build the netCDF cal files the pipeline uses from a reviewable YAML spec:
 
-    metadata/cals/{refdes}_{deployment}.nc                 exact values from the cal PDF
-    metadata/rca_correction_cals/{refdes}_{deployment}.nc  + RCA_BB_OFFSET, what the pipeline reads
+    metadata/cals/{refdes}_{deployment}.nc   manufacturer values in dB re 1 V/uPa
+
+Every file carries a `sensitivity` variable (the 0/90 average for directional cals),
+which is the only variable pbp reads; directional files keep sensitivity_0/sensitivity_90
+as the archival record of the sheet. The volts-to-counts conversion is no longer baked in
+here - stock pbp reads normalized float audio and audio_to_spec.py converts to volts with
+VOLTAGE_MULTIPLIER = 3 (24-bit / 3 V full scale), so the sheet values apply unmodified.
 
 One spec per instrument holds every deployment, so drift between deployments is visible in one
 diff. The PDF -> YAML transcription stays a human step: a hallucinated sensitivity silently biases
@@ -26,9 +31,6 @@ notebooks/03_PARSE_CAL_TO_NC.ipynb.
     cal-to-nc from-nc RS03AXPS-PC03A-08-HYDBBA303 # backfill a spec from existing .nc files
 """
 
-# OOI broadband hydrophone output is 24-bit ADC with maximum 3 volts, so there are
-# 8388608 / 3 = 2796202 counts per volt, equivalent to 128.9 dB (=20log10(2796202)).
-RCA_BB_OFFSET = 128.9
 SENS_RANGE = (-220.0, -120.0)  # plausible dB re 1 V/uPa, catches transcription slips
 DRIFT_DB = 6.0  # mean sensitivity jump between deployments worth a second look
 SPEC_DIR = Path("./metadata/cal_specs")
@@ -110,34 +112,25 @@ class HydCal(BaseModel):
         return {k: v for k, v in attrs.items() if v is not None}
 
     def to_dataset(self, spec_path) -> xr.Dataset:
-        """exact cal values, as printed on the PDF"""
-        vars = (
-            {"sensitivity": (["frequency"], self.sens)}
-            if self.sens is not None
-            else {
+        """cal values as printed on the PDF, plus the `sensitivity` variable pbp reads
+        (the sheet curve directly, or the 0/90 average for directional cals)"""
+        if self.sens is not None:
+            vars = {"sensitivity": (["frequency"], self.sens)}
+        else:
+            avg = [(a + b) / 2 for a, b in zip(self.sens0, self.sens90)]
+            vars = {
                 "sensitivity_0": (["frequency"], self.sens0),
                 "sensitivity_90": (["frequency"], self.sens90),
+                "sensitivity": (["frequency"], avg),
             }
-        )
         ds = xr.Dataset(
             data_vars=vars,
             coords={"frequency": self.frequencies},
             attrs={**self._attrs(spec_path), "sensitivity_units": "dB re 1 V/uPa"},
         )
+        if self.sens is None:
+            ds.sensitivity.attrs["note"] = "average of sensitivity_0 and sensitivity_90"
         ds.frequency.attrs["units"] = "Hz"
-        return ds
-
-    def to_correction_dataset(self, spec_path) -> xr.Dataset:
-        """cal + RCA offset, in dB re 1 count/uPa. Directional cals average 0/90 first."""
-        ds = self.to_dataset(spec_path)
-        base = (
-            ds["sensitivity"]
-            if self.sens is not None
-            else (ds["sensitivity_0"] + ds["sensitivity_90"]) / 2
-        )
-        ds["sensitivity"] = base + RCA_BB_OFFSET
-        ds.attrs["sensitivity_units"] = "dB re 1 count/uPa"
-        ds.attrs["rca_bb_offset"] = RCA_BB_OFFSET
         return ds
 
     def mean_sens(self):
@@ -163,10 +156,8 @@ def load_spec(path: Path) -> InstrumentCal:
     return InstrumentCal(**yaml.safe_load(path.read_text()))
 
 
-def datasets_for(spec: InstrumentCal, deployment: str, spec_path: Path):
-    cal = spec.deployments[deployment]
-    rel = Path(spec_path).as_posix()
-    return cal.to_dataset(rel), cal.to_correction_dataset(rel)
+def dataset_for(spec: InstrumentCal, deployment: str, spec_path: Path):
+    return spec.deployments[deployment].to_dataset(Path(spec_path).as_posix())
 
 
 def compare(a: xr.Dataset, b: xr.Dataset):
@@ -190,20 +181,16 @@ def compare(a: xr.Dataset, b: xr.Dataset):
     return diffs
 
 
-def plot_cal(ds, corrected, fpath, title):
+def plot_cal(ds, fpath, title):
     khz = ds.assign_coords(frequency=ds.frequency / 1000)
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharex=True)
+    fig, ax = plt.subplots(figsize=(7, 4))
     for var in ds.data_vars:
-        khz[var].plot(ax=axes[0], label=var, linewidth=1)
-    corrected.assign_coords(frequency=corrected.frequency / 1000)["sensitivity"].plot(
-        ax=axes[1], color="k", linewidth=1
-    )
-    axes[0].set_title("as printed (dB re 1 V/$\\mu$Pa)")
-    axes[1].set_title(f"+{RCA_BB_OFFSET} dB (dB re 1 count/$\\mu$Pa)")
-    axes[0].legend(fontsize=8)
-    for ax in axes:
-        ax.set_xlabel("frequency (kHz)")
-        ax.set_ylabel("sensitivity (dB)")
+        style = {"color": "k"} if var == "sensitivity" else {"alpha": 0.6}
+        khz[var].plot(ax=ax, label=var, linewidth=1, **style)
+    ax.set_title("sensitivity (dB re 1 V/$\\mu$Pa); pbp reads `sensitivity`", fontsize=9)
+    ax.legend(fontsize=8)
+    ax.set_xlabel("frequency (kHz)")
+    ax.set_ylabel("sensitivity (dB)")
     fig.suptitle(title, fontsize=10)
     fig.tight_layout()
     fig.savefig(fpath, dpi=150)
@@ -228,33 +215,32 @@ def template():
     type=click.Path(path_type=Path),
     default=META_DIR,
     show_default=True,
-    help="Parent of cals/ and rca_correction_cals/.",
+    help="Parent of cals/.",
 )
 @click.option("--plot", is_flag=True, help="Save a QA plot per deployment next to the spec.")
 @click.option("--dry-run", is_flag=True, help="Validate and report without writing netCDF.")
 def build(specs, outdir, plot, dry_run):
-    """Write both netCDF files for every deployment in SPECS."""
+    """Write the netCDF file for every deployment in SPECS."""
     for spec_path in specs:
         spec = load_spec(spec_path)
         click.echo(f"{spec.refdes} ({len(spec.deployments)} deployments) from {spec_path}")
 
         for dep, cal in sorted(spec.deployments.items(), key=lambda kv: int(kv[0])):
-            ds, corrected = datasets_for(spec, dep, spec_path)
+            ds = dataset_for(spec, dep, spec_path)
             fname = f"{spec.refdes}_{dep}.nc"
             flag = f"  PLACEHOLDER: {cal.placeholder}" if cal.placeholder else ""
             click.echo(
                 f"  deployment {dep}: {len(cal.frequencies)} points, "
                 f"{cal.frequencies[0]:.0f}-{cal.frequencies[-1]:.0f} Hz, "
-                f"{float(corrected.sensitivity.min()):.1f} to "
-                f"{float(corrected.sensitivity.max()):.1f} dB re 1 count/uPa{flag}"
+                f"{float(ds.sensitivity.min()):.1f} to "
+                f"{float(ds.sensitivity.max()):.1f} dB re 1 V/uPa{flag}"
             )
             if plot:
                 png = spec_path.with_name(f"{spec.refdes}_{dep}.png")
-                plot_cal(ds, corrected, png, f"{spec.refdes} deployment {dep}")
+                plot_cal(ds, png, f"{spec.refdes} deployment {dep}")
             if not dry_run:
-                for sub, out in [("cals", ds), ("rca_correction_cals", corrected)]:
-                    (outdir / sub).mkdir(parents=True, exist_ok=True)
-                    out.to_netcdf(outdir / sub / fname, mode="w")
+                (outdir / "cals").mkdir(parents=True, exist_ok=True)
+                ds.to_netcdf(outdir / "cals" / fname, mode="w")
 
         for a, b, delta in spec.drift():
             click.secho(
@@ -274,20 +260,18 @@ def check(specs, outdir):
     for spec_path in specs:
         spec = load_spec(spec_path)
         for dep in sorted(spec.deployments, key=int):
-            ds, corrected = datasets_for(spec, dep, spec_path)
-            fname = f"{spec.refdes}_{dep}.nc"
-            for sub, built in [("cals", ds), ("rca_correction_cals", corrected)]:
-                path = outdir / sub / fname
-                if not path.exists():
-                    click.secho(f"MISSING {path}", fg="red")
-                    stale += 1
-                    continue
-                diffs = compare(xr.open_dataset(path), built)
-                if diffs:
-                    stale += 1
-                    click.secho(f"STALE {path}", fg="red")
-                    for d in diffs:
-                        click.echo(f"    {d}")
+            built = dataset_for(spec, dep, spec_path)
+            path = outdir / "cals" / f"{spec.refdes}_{dep}.nc"
+            if not path.exists():
+                click.secho(f"MISSING {path}", fg="red")
+                stale += 1
+                continue
+            diffs = compare(xr.open_dataset(path), built)
+            if diffs:
+                stale += 1
+                click.secho(f"STALE {path}", fg="red")
+                for d in diffs:
+                    click.echo(f"    {d}")
     if stale:
         raise click.ClickException(f"{stale} file(s) do not match their spec - run `build`")
     click.secho("all committed cal files match their specs", fg="green")
@@ -327,10 +311,9 @@ def from_nc(refdes, indir, outdir):
             cal["cal_date"] = datetime.strptime(
                 ds.attrs["calibration_date"], "%Y-%m-%dT%H:%M:%S.%fZ"
             ).date()
-        # a corrected `sensitivity` leaked into a few archival files; it is derived, so drop it
+        # `sensitivity` on directional files is the derived 0/90 average `build` recreates,
+        # so it stays out of the spec
         if {"sensitivity_0", "sensitivity_90"} <= set(ds.data_vars):
-            if "sensitivity" in ds.data_vars:
-                click.secho(f"  dropping derived sensitivity var from {f.name}", fg="yellow")
             cal["sens0"] = [float(v) for v in ds.sensitivity_0.values]
             cal["sens90"] = [float(v) for v in ds.sensitivity_90.values]
         else:

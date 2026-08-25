@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ooi-hyd-tools"
-version = "1.6.1"
+version = "1.7.0"
 authors = [{ name="Joe Duprey", email="jduprey@uw.edu" }]
 readme = "README.md"
 description = "Tools and scripts for working with OOI hydrophone data"
@@ -37,9 +37,10 @@ dependencies = [
     "awscli==1.33.44",
     "scipy>=1.10.0",
     "ooipy>=1.2.5",
-    "mbari-pbp @ git+https://git@github.com/jdduprey/pbp.git@ooi-qaqc",
-    #"mbari-pbp @ git+https://github.com/mbari-org/pbp.git@main"
-
+    # stock pbp reads audio as float64 normalized to full scale; verified bit-identical
+    # to the retired jdduprey/pbp@ooi-qaqc int32 fork when paired with VOLTAGE_MULTIPLIER=3
+    # and the exact (dB re 1 V/uPa) cal files. 1.8.5 is the version that was verified.
+    "mbari-pbp==1.8.5",
 ]
 
 [project.scripts]
