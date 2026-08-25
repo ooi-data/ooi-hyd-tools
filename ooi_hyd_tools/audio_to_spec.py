@@ -20,11 +20,12 @@ from ooi_hyd_tools.utils import select_logger
 plt.switch_backend("Agg")  # use non-interactive backend
 # hydrophone specification
 VOLTAGE_MULTIPLIER = 3
-# NOTE (original, per Shima Abadi - RCA acoustics SME) OOI broadband hydrophone output is
+# NOTE (original, per Shima Abadi) OOI broadband hydrophone output is
 # 24-bit ADC with maximum 3 volts. So, there are 8388608 / 3 = 2796202 counts per volt
 # which is equivalent to 128.9 dB (=20log10(2796202)). This offset is applied to the cal
-# files in rca_correction_cals so here we use a voltage multiplier of 1.
-#
+# files in rca_correction_cals so here we USED a voltage multiplier of 1.
+
+# UPDATE Aug 2026
 # That offset and this multiplier are the same constant, just applied in different places:
 # 20log10(2**23/3) = 128.931 dB is counts-per-volt, whose full-scale term is the 3 V above.
 # Stock pbp reads the 24-bit FLAC as float64 normalized to full scale (+-1.0 = +-2**23

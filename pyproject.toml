@@ -25,12 +25,13 @@ dependencies = [
     "soundfile==0.12.1",
     "tqdm>=4.67.1",
     "obspy==1.4.1",
+    "setuptools<81", # obspy 1.4.1 needs pkg_resources, dropped in setuptools 81
     "loguru>0.6.0",
     "click>=7",
     "matplotlib>3.9",
     "pydantic>2",
     "pyyaml>=6", 
-    "prefect<3,>=2.5",
+    "prefect>=3.8",
     "netcdf4==1.7.2", # danger! unpinning causes low level dep problems on linux
     "h5py==3.14.0", # danger! unpinning causes low level dep problems on linux
     "polars>1.8",
