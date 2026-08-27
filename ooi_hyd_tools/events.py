@@ -6,7 +6,7 @@ import soundfile as sf
 from pathlib import Path
 from datetime import timedelta
 
-from ooi_hyd_tools.mseed_to_audio import HydrophoneDay
+from ooi_hyd_tools.mseed_to_audio import HydrophoneDay, GAP_THRESHOLD
 from ooi_hyd_tools.utils import select_logger
 
 """
@@ -35,18 +35,19 @@ def _select_urls(urls, start, end):
     return sorted(keep)
 
 
-def _gather_window(refdes, start, end, fudge_factor, logger):
+def _gather_window(refdes, start, end, gap_threshold, logger):
     """fetch + jitter-repair every segment overlapping the window, across day boundaries"""
     traces = []
     day = obs.UTCDateTime(start.date.year, start.date.month, start.date.day)
     while day < end:
         day_str = day.strftime("%Y/%m/%d")
-        hyd = HydrophoneDay(refdes, day_str, fudge_factor)
+        hyd = HydrophoneDay(refdes, day_str, gap_threshold)
         if hyd.mseed_urls:
             hyd.mseed_urls = _select_urls(hyd.mseed_urls, start, end)
             logger.info(f"{day_str}: {len(hyd.mseed_urls)} segments in window")
             hyd.read_and_repair_gaps()
-            traces += [cs[0] for cs in hyd.clean_list if cs is not None]
+            # a segment yields >1 trace when a real gap split it
+            traces += [tr for cs in hyd.clean_list if cs is not None for tr in cs]
         day += timedelta(days=1)
     return traces
 
@@ -75,12 +76,18 @@ def _gather_window(refdes, start, end, fudge_factor, logger):
 @click.option(
     "--fade", type=float, default=0.0, help="Fade in/out taper in seconds at both ends."
 )
-@click.option("--fudge-factor", type=float, default=0.02, show_default=True)
-def extract_event(refdes, start, end, bandpass, normalize, gain_db, speed, fade, fudge_factor):
+@click.option(
+    "--gap-threshold",
+    type=float,
+    default=GAP_THRESHOLD,
+    show_default=True,
+    help="How long a gap must be (seconds) to count as lost recording, not a bad timestamp.",
+)
+def extract_event(refdes, start, end, bandpass, normalize, gain_db, speed, fade, gap_threshold):
     logger = select_logger()
     start, end = obs.UTCDateTime(start), obs.UTCDateTime(end)
 
-    traces = _gather_window(refdes, start, end, fudge_factor, logger)
+    traces = _gather_window(refdes, start, end, gap_threshold, logger)
     if not traces:
         logger.warning("No data available in the requested window.")
         return
