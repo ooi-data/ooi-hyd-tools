@@ -40,6 +40,74 @@ Run with `--flag all` to generate hybrid millidecade spectrograms.
 
 Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
 
+### Jitter and gap repair
+
+The DDS mislabels when each burst of samples arrived - by anywhere from a fraction of a
+millisecond to a quarter second, and the pattern differs between instruments and between
+years. It never moves or duplicates recording; only the labels are wrong. So the **number
+of samples**, not the timestamps, decides whether any recording is actually missing.
+Timestamps are only consulted afterwards, to find where a real break happened.
+
+```mermaid
+flowchart TD
+    IN["5-min mseed file<br/>(1 to 1200+ pieces)"] --> Q{"How many samples<br/>are in the file?"}
+
+    Q -->|"more than 5 min holds"| C["<b>CASE C — TOO MUCH DATA</b><br/>Should not happen"]
+    Q -->|"a full 5 min"| A["<b>CASE A — COMPLETE</b><br/>Nothing is missing, so every<br/>apparent gap is a bad timestamp"]
+    Q -->|"less than 5 min"| B["<b>CASE B — RECORDING MISSING</b><br/>Instrument stopped, or<br/>data was diverted"]
+
+    C --> KEEP["Rejoin every piece into one file<br/>on its 5-minute startpoint"]
+    A --> KEEP
+    C -.->|log| FLAG(["ISSUE logged<br/>for review"])
+
+    B --> WHERE{"Which gaps are real?<br/>longer than --gap-threshold AND the<br/>file's own measured label noise"}
+    WHERE --> SPLIT["Split at each real break.<br/>Every surviving stretch is written,<br/>named from its own start time"]
+    SPLIT --> CHECK{"Do those breaks account for<br/>all the missing recording?"}
+    CHECK -->|yes| OUT(["FLAC written"])
+    CHECK -->|"no"| FLAG
+
+    KEEP --> OUT
+    FLAG --> OUT
+```
+
+Nothing is discarded: a file that is short still yields audio, and any missing time is
+reported rather than silently dropped. A gap counts as a real break only if it is longer
+than `--gap-threshold` (OEK `TrHld2`, default 0.02 s) **and** longer than the file's own
+measured label noise - overlaps can only ever be label error, so the largest overlap in a
+file calibrates how big that file's timestamp lies are (observed 10-250 ms depending on
+instrument and era).
+
+What each case looks like on the clock. Every `|` is a boundary where the timestamps claim
+one piece ends and the next begins - those boundaries are wrong, and the recording across
+them is continuous.
+
+```
+                    0:00                                              5:00
+                    |                                                    |
+
+CASE A  COMPLETE    [==|==|==|==|==|==|==|==|==|==|==|==|==|=============]   pieces arrive mislabelled
+                    [====================================================]   -> 1 file, the whole 5 min
+                    19,200,000 samples = a full 5 min, so nothing is missing
+
+CASE B  MISSING     [====|====|====|=====]          [====|====|====|=====]   a real break
+                                          ^^^^^^^^^^  3 s of recording genuinely gone
+                    [====================]          [====================]   -> 2 files, named from their own start
+                    short by exactly 3 s, and that one break accounts for all of it
+
+CASE C  TOO MUCH    [==|==|==|==|==|==|==|==|==|==|==|==|==|=================]
+                                                                         ^^^^  more than 5 min holds
+                    kept in full, but flagged for review
+```
+
+### File naming and start times
+
+Files are named `{instrument}_{YYYYMMDD}_{HHMMSS}` at whole-second resolution, because that
+is the finest mbari-pbp can parse - `meta_gen/utils.py` matches `{prefix}_YYYYMMDD_HHMMSS.`
+and nothing after, so any sub-second suffix makes the file invisible to the spectrogram
+stage. A recording that resumes mid-second therefore loses up to 1 s in its name; the exact
+start is written into the file header instead (`date` and `comment`, readable in both FLAC
+and WAV), where nothing truncates it.
+
 ### FLAC bit depth
 
 OOI mseed carries 24-bit ADC counts right-justified in int32 (the integer *is* the count,
@@ -115,6 +183,8 @@ Ordered by size of the error on delivered spectrograms.
 | Untracked | all instruments | cal sheets state a **preamp gain** (36 dB on the sheets seen) that is baked into the quoted sensitivity, but the specs have no field for it. A deployment calibrated or operated at a different gain would silently break the counts-per-volt chain |
 | Step change | all instruments, >12 kHz | the v1.7 bit-depth fix removed a **+0.96 dB bias at the quiet end of 20-27 kHz** (+0.45 at 12-20 kHz, nothing below 12 kHz). Within natural variability for a single measurement - the 20-27 kHz L05 spreads 7.6 dB within one day - but it is a *step* in a multi-year record. Note the reprocess date per instrument so trend work can account for it |
 | Placeholder | `HYDBBA105` dep 10 | most recent available cal; the correct one is not yet published upstream |
+| No cal | `HYDBBA303` deps 4-9 (2017-07-31 to 2024-08-11), `HYDBBA103` deps 1-11 | No calibration transcribed, so `--flag viz`/`all` raises `FileNotFoundError` rather than producing uncalibrated spectrograms - roughly seven years of HYDBBA303. The assignments exist in `OOI-CabledArray/deployments`, so this is transcription work. **Deprioritised**: both instruments are mooring-mounted |
+| Degenerate timestamps | `HYDBBA102` 2023-06-15, extent unknown | Every trace in a file carries one **identical** timestamp - 383 traces all claiming `00:01:54.083000` - so the labels span 0.25 s while the file holds 95.8 s of audio. That single value sits anywhere from 0 to 300 s after the file's nominal start, so naming a file from its first trace (OEK §9) scatters output across the day and **fragments the spectrogram**, even though the archive's own filenames are clean 5-minute boundaries. Audio itself is written correctly and completely; only placement is wrong. A sound detector exists - labels cannot span less wall-clock time than the audio they contain (10 of 11 sampled files fail it) - and the fix is to name from the filename and skip gap-splitting when it trips. Not yet implemented, and **not yet surveyed across other instruments or eras** |
 
 Re-run `cal-to-nc build` after editing a spec. Calibrations exist for HYDBBA105, HYDBBA106, HYDBBA302 and HYDBBA303 since program inception; moorings since 2025.
 

@@ -193,8 +193,10 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_
 
     # The resulting NetCDF file should have been saved under the output directory.
     result = hmb_gen.process_date(start_date)
-    # sanity check
-    logger.info(result.dataset)
+
+    if not hasattr(result, "dataset"):
+        raise RuntimeError(f"pbp failed for {start_date}: {result}")
+    logger.info(result.dataset)  # sanity check
 
     nc_filename = output_dir / f"{instrument}_{start_date}.nc"
     ds = xr.open_dataset(nc_filename, engine="h5netcdf")

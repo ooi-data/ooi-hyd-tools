@@ -4,7 +4,7 @@ import yaml
 from abc import ABC, abstractmethod
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta, timezone
-from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
+from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday, GAP_THRESHOLD
 from ooi_hyd_tools.utils import select_logger
 
 logger = select_logger()
@@ -35,7 +35,7 @@ def build_params(
     hyd_refdes,
     format,
     normalize_traces,
-    fudge_factor,
+    gap_threshold,
     write_wav,
     apply_cals,
     freq_lims,
@@ -48,7 +48,7 @@ def build_params(
         "date": date.strftime("%Y/%m/%d"),
         "format": format,
         "normalize_traces": normalize_traces,
-        "fudge_factor": fudge_factor,
+        "gap_threshold": gap_threshold,
         "write_wav": write_wav,
         "apply_cals": apply_cals,
         "freq_lims": freq_lims,
@@ -120,11 +120,12 @@ class CeleryRunner(Runner):
     help="Normalize the optional WAV copies for listening. FLAC is never normalized.",
 )
 @click.option(
-    "--fudge-factor",
+    "--gap-threshold",
     type=float,
-    default=0.02,
+    default=GAP_THRESHOLD,
     show_default=True,
-    help="The maxiximum size gap/overlap in the mseed data you want to tolerate without throwing an error (in seconds).",
+    help="How long a gap in the mseed data must be (seconds) before it counts as genuinely"
+    " lost recording rather than a mislabelled timestamp.",
 )
 @click.option(
     "--write-wav",
@@ -151,10 +152,10 @@ class CeleryRunner(Runner):
 )
 @click.option(
     "--s3-sync",
-    type=bool,
-    default=False,
-    show_default=True,
-    help="Whether to sync .nc and .png files in local output folder to s3",
+    type=click.Choice(["spectrogram", "all"], case_sensitive=False),
+    default=None,
+    help="What to upload to s3. 'spectrogram' sends the .nc and .png; 'all' also sends the"
+    " flac, to flac/YYYY/INSTRUMENT/YYYY_MM_DD/. Omit to upload nothing.",
 )
 @click.option(
     "--flag",
@@ -187,7 +188,7 @@ def run_acoustic_pipeline(
     hyd_refdes,
     format,
     normalize_traces,
-    fudge_factor,
+    gap_threshold,
     write_wav,
     apply_cals,
     freq_lims,
@@ -219,7 +220,7 @@ def run_acoustic_pipeline(
             hyd_refdes=hyd_refdes,
             format=format,
             normalize_traces=normalize_traces,
-            fudge_factor=fudge_factor,
+            gap_threshold=gap_threshold,
             write_wav=write_wav,
             apply_cals=apply_cals,
             freq_lims=freq_lims,
