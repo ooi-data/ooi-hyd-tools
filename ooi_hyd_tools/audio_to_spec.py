@@ -70,7 +70,7 @@ def gen_metadata(start_date, file_type, hyd_refdes):
 
     # Audio data input specifications
     flac_uri = f"file://{str(Path.cwd())}/data/{file_type}/{date_dir}/{instrument}"
-    logger.warning(flac_uri)
+    logger.info(f"pbp reading audio from {flac_uri}")
     flac_prefix = instrument  # prefix for the audio files
     start_date = start_date  # start date for temporal metadata extraction (YYYYMMDD)
     json_base_dir = "metadata/json"  # location to store generated metadata in JSON format
