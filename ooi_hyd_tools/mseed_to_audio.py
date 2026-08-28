@@ -8,6 +8,8 @@ import soundfile as sf
 import time
 import matplotlib.pyplot as plt
 
+from contextvars import copy_context
+
 from datetime import datetime
 from tqdm import tqdm
 from pathlib import Path
@@ -72,12 +74,16 @@ def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
     # automatically set max_workers to 2x(available cores)
     if max_workers == -1:
         max_workers = min(24, 2 * mp.cpu_count())
-        print(f"Max workers: {max_workers}")
+        select_logger().debug(f"Max workers: {max_workers}")
 
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Start the load operations and mark each future with its URL
-        future_to_url = {executor.submit(func, i, args): i for i in iterator}
+        # Start the load operations and mark each future with its URL. Each worker runs in
+        # a copy of the caller's context so it keeps the prefect run logger - without this
+        # a worker's logging has no run to attach to and never reaches the flow run.
+        future_to_url = {
+            executor.submit(copy_context().run, func, i, args): i for i in iterator
+        }
         # Disable progress bar
         is_disabled = not verbose
         for future in tqdm(
@@ -129,11 +135,12 @@ class HydrophoneDay:
         self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
 
     def get_mseed_urls(self, day_str, refdes):
+        logger = select_logger()
         base_url = "https://rawdata.oceanobservatories.org/files"
         mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day_str}/"
         FS = fsspec.filesystem("http")
-        print(mainurl)
-        print(Path.cwd())
+        logger.info(mainurl)
+        logger.debug(Path.cwd())
 
         try:
             data_url_list = sorted(
@@ -149,17 +156,17 @@ class HydrophoneDay:
                     if f["type"] == "file" and f["name"].endswith(".mseed")
                 )
             except Exception:
-                print(f"No addendum for {day_str}")
+                logger.info(f"No addendum for {day_str}")
                 addendum_list = []
 
         except Exception as e:
-            print("Client response: ", str(e))
+            logger.warning(f"Client response: {e}")
             return None
 
         data_url_list.extend(addendum_list)
 
         if not data_url_list:
-            print("No Data Available for Specified Time")
+            logger.warning("No Data Available for Specified Time")
             return None
 
         return data_url_list
@@ -167,12 +174,11 @@ class HydrophoneDay:
     def read_and_repair_gaps(self):
         if self.mseed_urls is None:
             return None
-        else:
-            self.clean_list = _map_concurrency(
-                func=self._deal_with_gaps_and_overlaps,
-                iterator=self.mseed_urls,
-                verbose=False,
-            )
+        self.clean_list = _map_concurrency(
+            func=self._deal_with_gaps_and_overlaps,
+            iterator=self.mseed_urls,
+            verbose=False,
+        )
 
     def _read_mseed(self, url):
         """download one file, retrying transient server errors.
@@ -182,23 +188,22 @@ class HydrophoneDay:
         day. A file that never arrives returns None and is reported, so the day still
         produces audio for everything else.
         """
+        logger = select_logger()
         for attempt in range(1, READ_ATTEMPTS + 1):
             try:
                 # always int32: the writer needs integer counts to left-justify
                 return obs.read(url, apply_calib=False, dtype=np.int32)
             except (requests.exceptions.RequestException, OSError) as e:
                 if attempt == READ_ATTEMPTS:
-                    print(
+                    logger.warning(
                         f"ISSUE {url}: no data after {READ_ATTEMPTS} attempts "
-                        f"({type(e).__name__}); this 5 min is missing from the day",
-                        flush=True,
+                        f"({type(e).__name__}); this 5 min is missing from the day"
                     )
                     return None
                 wait = RETRY_WAIT * 2 ** (attempt - 1)
-                print(
+                logger.info(
                     f"{url}: {type(e).__name__}, retrying in {wait}s "
-                    f"({attempt}/{READ_ATTEMPTS - 1})",
-                    flush=True,
+                    f"({attempt}/{READ_ATTEMPTS - 1})"
                 )
                 time.sleep(wait)
 
@@ -245,12 +250,13 @@ class HydrophoneDay:
         That gives three cases, below. Returns one trace per unbroken stretch of
         recording - normally just one covering the whole 5 minutes.
         """
+        logger = select_logger()
         st = self._read_mseed(url)
         if st is None:
             return None
         nominal = self._nominal_start(url)
 
-        sr = st[0].stats.sampling_rate 
+        sr = st[0].stats.sampling_rate
         expected = round(NOMINAL_SECONDS * sr)  # samples in a full 5 minutes
         tol = round(COUNT_THRESHOLD * sr)  # slack on the count, not on the timestamps
         samples = sum(tr.stats.npts for tr in st)
@@ -264,10 +270,9 @@ class HydrophoneDay:
         # recording and flag it so someone looks.
         # =====================================================================
         if samples > expected + tol:
-            print(
+            logger.warning(
                 f"ISSUE {nominal}: CASE C, {samples} samples is more than the "
-                f"{expected} in a 5-min file. Keeping all of it, please investigate.",
-                flush=True,
+                f"{expected} in a 5-min file. Keeping all of it, please investigate."
             )
             return obs.Stream(traces=[self._rejoin_traces(st.traces, nominal)])
 
@@ -278,7 +283,7 @@ class HydrophoneDay:
         # back together and keep the file on its 5-minute startpoint.
         # =====================================================================
         if samples >= expected - tol:
-            print(f"{nominal}: CASE A, {len(st)} pieces rejoined, 5 min intact", flush=True)
+            logger.info(f"{nominal}: CASE A, {len(st)} pieces rejoined, 5 min intact")
             start = self._start_for(st[0].stats.starttime, nominal, label_noise_s)
             return obs.Stream(traces=[self._rejoin_traces(st.traces, start)])
 
@@ -317,18 +322,16 @@ class HydrophoneDay:
         ]
 
         explained = int(deltas[real].sum())
-        print(
+        logger.info(
             f"{nominal}: CASE B, missing {deficit / sr:.2f}s of recording; "
             f"{len(real)} break(s) account for {explained / sr:.2f}s "
-            f"(label noise here {label_noise_s * 1000:.0f} ms); writing {len(chunks)} file(s)",
-            flush=True,
+            f"(label noise here {label_noise_s * 1000:.0f} ms); writing {len(chunks)} file(s)"
         )
         if abs(explained - deficit) > tol:
-            print(
+            logger.warning(
                 f"ISSUE {nominal}: {(deficit - explained) / sr:.2f}s of the missing "
                 f"recording is unaccounted for - either the file starts late or ends "
-                f"early, or breaks are smaller than {max(self.gap_threshold, label_noise_s)}s",
-                flush=True,
+                f"early, or breaks are smaller than {max(self.gap_threshold, label_noise_s)}s"
             )
         return obs.Stream(traces=chunks)
 
@@ -419,12 +422,11 @@ def convert_mseed_to_audio(
                 if stamp in seen:
                     prev_npts, prev_start = seen[stamp]
                     keep = npts > prev_npts
-                    print(
+                    logger.warning(
                         f"ISSUE {hyd_refdes[-9:]}_{stamp}: two pieces start in the same "
                         f"second ({prev_start} and {start}); keeping the longer "
                         f"({max(npts, prev_npts) / sr:.2f}s over "
-                        f"{min(npts, prev_npts) / sr:.2f}s)",
-                        flush=True,
+                        f"{min(npts, prev_npts) / sr:.2f}s)"
                     )
                     if not keep:
                         continue
@@ -434,15 +436,15 @@ def convert_mseed_to_audio(
                 flac_path = flac_dir / f"{hyd_refdes[-9:]}_{stamp}.flac"
                 wav_path = wav_dir / f"{hyd_refdes[-9:]}_{stamp}.wav"
 
+                logger.debug(str(flac_path))
                 # counts are left-shifted so PCM_24 stores them intact, see INT24_SHIFT
-                print(str(flac_path))
                 _write_audio(
                     flac_path, tr.data << INT24_SHIFT, sr, "PCM_24", hyd_refdes, start, npts
                 )
                 written += npts / sr
 
                 if write_wav:
-                    print(str(wav_path))
+                    logger.debug(str(wav_path))
                     data = tr.data
                     if normalize_traces:  # listening copy only
                         data = data / np.abs(data).max()
