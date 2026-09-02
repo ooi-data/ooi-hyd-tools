@@ -177,8 +177,8 @@ threw the rest away.
 ```
                    31-24     23-16     15-8      7-0
 obspy int32      [ 00000000  00000000  00000011  11101000 ]  = 1000 counts
-                   \________ kept by PCM_24 _______/\_______/
-                                                    discarded
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^
+                   kept by PCM_24 (bits 31-8)    discarded (bits 7-0)
 stored in FLAC   [ 00000000  00000000  00000011 ]            = 3
 read back        [ 00000000  00000000  00000011  00000000 ]  = 768   (lost 232)
 ```
@@ -194,8 +194,8 @@ preserved and `>> 8` recovers the original exactly.
 ```
                    31-24     23-16     15-8      7-0
 count << 8       [ 00000000  00000011  11101000  00000000 ]  = 256,000
-                   \________ kept by PCM_24 _______/\_______/
-                                                    padding zeros
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^
+                   kept by PCM_24 (bits 31-8)    padding zeros
 stored in FLAC   [ 00000000  00000011  11101000 ]            = 1000
 read, then >> 8  [ 00000000  00000000  00000011  11101000 ]  = 1000   exact
 ```
