@@ -124,6 +124,32 @@ full scale 2^23); libsndfile's int32 API is left-justified (full scale 2^31). Wr
 straight to `PCM_24` therefore stored `count >> 8`. Since v1.7 the writer shifts left by 8
 first so the true count lands in the 24-bit word.
 
+### Audio file metadata
+
+Three fields are set at write time (`_write_audio`), and soundfile maps each onto whichever
+tagging scheme the container supports:
+
+| Written as | FLAC (Vorbis comment) | WAV (RIFF `LIST`/`INFO`) | Holds |
+| --- | --- | --- | --- |
+| `date` | `DATE=` | `ICRD` | exact start, sub-second, ISO 8601 |
+| `software` | `SOFTWARE=` | `ISFT` | `ooi-hyd-tools`; libsndfile appends its own version |
+| `comment` | `COMMENT=` | `ICMT` | `refdes=` `start=` `npts=` `sampling_rate=` |
+
+As it appears in a real file:
+
+```
+date=2026-08-19T00:00:00.014000Z
+software=ooi-hyd-tools (libsndfile-1.2.0)
+comment=refdes=CE04OSBP-LJ01C-11-HYDBBA105 start=2026-08-19T00:00:00.014000Z npts=19200000 sampling_rate=64000
+```
+Reading it back:
+
+```bash
+python -c "import soundfile as sf; f=sf.SoundFile('x.flac'); print(f.date); print(f.comment)"
+metaflac --list --block-type=VORBIS_COMMENT x.flac   # flac only
+ffprobe -hide_banner x.wav                           # either container
+```
+
 ### Candidate: the same repair upstream, on packets
 
 Notes of what it would take to apply this at
