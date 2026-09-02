@@ -123,6 +123,7 @@ OOI mseed carries 24-bit ADC counts right-justified in int32 (the integer *is* t
 full scale 2^23); libsndfile's int32 API is left-justified (full scale 2^31). Writing counts
 straight to `PCM_24` therefore stored `count >> 8`. Since v1.7 the writer shifts left by 8
 first so the true count lands in the 24-bit word.
+Full walkthrough, with the numbers and where the +128.9 dB offset came from: [docs/24-bit-counts.md](docs/24-bit-counts.md).
 
 ### Audio file metadata
 
