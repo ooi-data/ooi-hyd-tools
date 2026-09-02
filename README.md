@@ -151,6 +151,35 @@ metaflac --list --block-type=VORBIS_COMMENT x.flac   # flac only
 ffprobe -hide_banner x.wav                           # either container
 ```
 
+### Per-day manifest
+
+Each day's FLAC directory also gets `{instrument}_{YYYYMMDD}_manifest.json`, uploaded after the
+audio so its presence means the day finished:
+
+```json
+{
+  "refdes": "CE04OSBP-LJ01C-11-HYDBBA105",
+  "date": "2026-08-19",
+  "written_by": "ooi-hyd-tools 1.7.1",
+  "counts": "int24_left_justified",
+  "sampling_rate": 64000,
+  "gap_threshold_s": 0.023,
+  "source_mseed_files": 288,
+  "files_written": 286,
+  "seconds_written": 85799.844,
+  "day_coverage_pct": 99.31,
+  "collisions": [{"stamp": "20260819_014500", "kept_s": 299.84,
+                  "dropped_s": 0.06, "dropped_start": "2026-08-19T01:45:00.098000Z"}],
+  "files": [{"name": "HYDBBA105_20260819_000000.flac",
+             "start": "2026-08-19T00:00:00.014000Z", "npts": 19200000}]
+}
+```
+
+`files` carries the sub-second starts that filenames round away - one read instead of 288 headers.
+`day_coverage_pct` separates a short recording day from a failed upload. `collisions` records
+pieces dropped because two started in the same second (see Known issues); that audio is unique
+and is written nowhere else.
+
 ### Candidate: the same repair upstream, on packets
 
 Notes of what it would take to apply this at

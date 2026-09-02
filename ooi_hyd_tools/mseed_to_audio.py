@@ -498,7 +498,7 @@ def convert_mseed_to_audio(
 
 
 @task  # TODO remove this once FLAC are being distributed or sooner
-def compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str):
+def compare_flac_wav(hyd_refdes, hyd, png_dir, date_str):
     logger = select_logger()
 
     logger.info("Some flac/wav comparisions:")
@@ -575,7 +575,7 @@ def acoustic_flow_oneday(
         logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
 
         if write_wav and not normalize_traces:
-            compare_flac_wav(hyd_refdes, format, hyd, png_dir, date_str)
+            compare_flac_wav(hyd_refdes, hyd, png_dir, date_str)
 
     if flag == "viz" or flag == "all":
         audio_to_spec(date, "flac", hyd_refdes, apply_cals, freq_lims)
