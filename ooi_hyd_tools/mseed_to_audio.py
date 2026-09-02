@@ -1,5 +1,6 @@
 import fsspec
 import concurrent.futures
+import json
 import obspy as obs
 import numpy as np
 import multiprocessing as mp
@@ -14,7 +15,7 @@ from datetime import datetime
 from tqdm import tqdm
 from pathlib import Path
 from prefect import task, flow
-from importlib.metadata import distributions
+from importlib.metadata import distributions, version
 
 from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.low_freq import run_low_freq_oneday
@@ -114,8 +115,12 @@ def _write_audio(path, data, sr, subtype, refdes, start, npts):
         format=path.suffix[1:].upper(),
     ) as f:
         f.date = str(start)  # exact, sub-second; the filename is rounded
-        f.software = "ooi-hyd-tools"
-        f.comment = f"refdes={refdes} start={start} npts={npts} sampling_rate={sr}"
+        f.software = f"ooi-hyd-tools {version('ooi-hyd-tools')}"
+        # counts= says what the integers mean, for readers who have no changelog to consult
+        f.comment = (
+            f"refdes={refdes} start={start} npts={npts} sampling_rate={sr} "
+            f"counts=int24_left_justified"
+        )
         f.write(data)
 
 
@@ -406,7 +411,8 @@ def convert_mseed_to_audio(
         wav_dir.mkdir(parents=True, exist_ok=True)
 
         written = 0
-        seen = {}  # stamp -> (npts, start), to catch two pieces landing in one second
+        seen = {}  # stamp -> (npts, start, sr), to catch two pieces landing in one second
+        collisions = []  # kept for the manifest; otherwise this evidence only ever gets logged
         for st in hyd.clean_list:
             if st is None:
                 continue
@@ -420,8 +426,16 @@ def convert_mseed_to_audio(
                 # apart, which round to the same filename. Keep the longer piece and say
                 # so, rather than silently overwriting.
                 if stamp in seen:
-                    prev_npts, prev_start = seen[stamp]
+                    prev_npts, prev_start, _ = seen[stamp]
                     keep = npts > prev_npts
+                    collisions.append(
+                        {
+                            "stamp": stamp,
+                            "kept_s": round(max(npts, prev_npts) / sr, 3),
+                            "dropped_s": round(min(npts, prev_npts) / sr, 3),
+                            "dropped_start": str(prev_start if keep else start),
+                        }
+                    )
                     logger.warning(
                         f"ISSUE {hyd_refdes[-9:]}_{stamp}: two pieces start in the same "
                         f"second ({prev_start} and {start}); keeping the longer "
@@ -431,7 +445,7 @@ def convert_mseed_to_audio(
                     if not keep:
                         continue
                     written -= prev_npts / sr  # the file being replaced
-                seen[stamp] = (npts, start)
+                seen[stamp] = (npts, start, sr)
 
                 flac_path = flac_dir / f"{hyd_refdes[-9:]}_{stamp}.flac"
                 wav_path = wav_dir / f"{hyd_refdes[-9:]}_{stamp}.wav"
@@ -451,6 +465,29 @@ def convert_mseed_to_audio(
                         _write_audio(wav_path, data, sr, "FLOAT", hyd_refdes, start, npts)
                     else:
                         _write_audio(wav_path, data, sr, format, hyd_refdes, start, npts)
+
+        # A day is ~288 objects in S3 and is often partial, so a consumer has no way to
+        # tell a recording gap from a failed upload. The manifest carries that, the exact
+        # sub-second starts (filenames hold only whole seconds), and the collisions.
+        manifest = {
+            "refdes": hyd_refdes,
+            "date": hyd.date.strftime("%Y-%m-%d"),
+            "written_by": f"ooi-hyd-tools {version('ooi-hyd-tools')}",
+            "counts": "int24_left_justified",
+            "sampling_rate": next(iter(seen.values()))[2] if seen else None,
+            "gap_threshold_s": gap_threshold,
+            "source_mseed_files": len(hyd.mseed_urls),
+            "files_written": len(seen),
+            "seconds_written": round(written, 3),
+            "day_coverage_pct": round(100 * written / 86400, 2),
+            "collisions": collisions,
+            "files": [  # sorted: seen is filled by a thread pool, so its order varies
+                {"name": f"{hyd_refdes[-9:]}_{stamp}.flac", "start": str(start), "npts": npts}
+                for stamp, (npts, start, _) in sorted(seen.items())
+            ],
+        }
+        manifest_name = f"{hyd_refdes[-9:]}_{hyd.date.strftime('%Y%m%d')}_manifest.json"
+        (flac_dir / manifest_name).write_text(json.dumps(manifest, indent=2))
 
         # what fraction of the day actually made it to disk
         logger.info(

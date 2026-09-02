@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ooi-hyd-tools"
-version = "1.7.0"
+version = "1.7.1"
 authors = [{ name="Joe Duprey", email="jduprey@uw.edu" }]
 readme = "README.md"
 description = "Tools and scripts for working with OOI hydrophone data"

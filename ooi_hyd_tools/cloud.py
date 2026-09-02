@@ -21,31 +21,27 @@ def sync_png_nc_to_s3(hyd_refdes, date, flag, scope="spectrogram", local_dir=Pat
     """
     logger = select_logger()
     instrument = hyd_refdes[-9:]
-    year = datetime.strptime(date, "%Y/%m/%d").year
+    day = datetime.strptime(date, "%Y/%m/%d")
+    year = day.year
     fs_kwargs = get_s3_kwargs()
     s3_fs = fsspec.filesystem("s3", **fs_kwargs)
 
-    def is_valid_file(fp: Path):
-        filename = fp.name
-
-        return instrument in filename and str(year) in filename
-
     if "obs" not in flag:
-        # Upload .nc files to hmb/YYYY/
-        nc_files = local_dir.rglob("*.nc")
-        for fp in nc_files:
-            if fp.is_file() and is_valid_file(fp):
-                s3_uri = f"{OOI_DATA_BUCKET}/hmb/{year}/{instrument}/{fp.name}"
-                logger.info(f"Uploading {fp} to {s3_uri}")
-                s3_fs.put(str(fp), s3_uri)
+        # name this run's products rather than globbing output/, which accumulates across
+        # runs - a glob re-uploads other days and files the current instrument never wrote
+        stem = f"{instrument}_{day.strftime('%Y%m%d')}"
 
-        # Upload .png files to spectrograms/YYYY/
-        png_files = local_dir.glob("*HYD*.png")
-        for fp in png_files:
-            if fp.is_file():
-                s3_uri = f"{OOI_VIZ_BUCKET}/spectrograms/{year}/{instrument}/{fp.name}"
-                logger.info(f"Uploading {fp} to {s3_uri}")
-                s3_fs.put(str(fp), s3_uri)
+        nc = local_dir / f"{stem}.nc"
+        if nc.is_file():
+            s3_uri = f"{OOI_DATA_BUCKET}/hmb/{year}/{instrument}/{nc.name}"
+            logger.info(f"Uploading {nc} to {s3_uri}")
+            s3_fs.put(str(nc), s3_uri)
+
+        png = local_dir / f"{stem}.png"
+        if png.is_file():
+            s3_uri = f"{OOI_VIZ_BUCKET}/spectrograms/{year}/{instrument}/{png.name}"
+            logger.info(f"Uploading {png} to {s3_uri}")
+            s3_fs.put(str(png), s3_uri)
 
         if scope == "all":
             sync_flac_to_s3(hyd_refdes, date, s3_fs, logger)
@@ -66,7 +62,8 @@ def sync_flac_to_s3(hyd_refdes, date, s3_fs, logger):
     instrument is ~105k files, too many to sit in a single prefix comfortably.
     """
     instrument = hyd_refdes[-9:]
-    year = datetime.strptime(date, "%Y/%m/%d").year
+    parsed = datetime.strptime(date, "%Y/%m/%d")
+    year = parsed.year
     day = date.replace("/", "_")
     flac_dir = Path.cwd() / f"data/flac/{day}/{instrument}"
     files = sorted(flac_dir.glob("*.flac"))
@@ -84,3 +81,11 @@ def sync_flac_to_s3(hyd_refdes, date, s3_fs, logger):
     with concurrent.futures.ThreadPoolExecutor(FLAC_UPLOAD_WORKERS) as ex:
         list(ex.map(put, files))
     logger.info(f"Uploaded {len(files)} flac to {prefix}/")
+
+    # last, so its presence means the day's audio is fully uploaded
+    manifest = flac_dir / f"{instrument}_{parsed.strftime('%Y%m%d')}_manifest.json"
+    if manifest.is_file():
+        s3_fs.put(str(manifest), f"{prefix}/{manifest.name}")
+        logger.info(f"Uploaded {manifest.name}")
+    else:
+        logger.warning(f"no manifest in {flac_dir}")
