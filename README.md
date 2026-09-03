@@ -15,6 +15,26 @@ https://github.com/ioos/soundcoop
 
 https://github.com/lifewatch/pypam
 
+## Contents
+
+| section | what it covers |
+| --- | --- |
+| [Converting mseed to flac or wav](#how-to-convert-ooi-mseed-archives-to-flac-or-wav) | the CLI, and how the gap repair, naming and bit depth work |
+| [What gets written](#what-gets-written) | per-file header tags and the per-day manifest |
+| [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
+| [Hydrophone calibrations](#hydrophone-calibrations) | cal specs, where the sheets come from, how one is chosen |
+| [Known issues to fix](#known-issues-to-fix) | current defects, ordered by size of error on delivered products |
+| [Candidate work upstream](#candidate-the-same-repair-upstream-on-packets) | what applying the repair at ingest would take |
+| [Reference designators](#ooi-reference-designators-refdes-for-broadband-hydrophones-and-approximate-latlon) | refdes and approximate lat/lon |
+
+Longer notes live in [`docs/`](docs/):
+
+- [**24-bit-counts.md**](docs/24-bit-counts.md) - how a sample travels from pascals to counts
+  to volts and back, why 24-bit counts needed a left shift, and where the +128.9 dB
+  calibration offset came from.
+- [**data-access.md**](docs/data-access.md) - S3 layout, how to read the FLAC, timing caveats
+  and the per-day manifest. Written for external users; safe to hand out.
+
 # How to convert ooi mseed archives to flac or wav
 `git clone https://github.com/ooi-data/ooi-hyd-tools.git`
 
@@ -40,6 +60,7 @@ Run with `--flag all` to generate hybrid millidecade spectrograms.
 
 Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
 
+## How the repair works
 ### Jitter and gap repair
 
 The DDS mislabels when each burst of samples arrived - by anywhere from a fraction of a
@@ -125,6 +146,7 @@ straight to `PCM_24` therefore stored `count >> 8`. Since v1.7 the writer shifts
 first so the true count lands in the 24-bit word.
 Full walkthrough, with the numbers and where the +128.9 dB offset came from: [docs/24-bit-counts.md](docs/24-bit-counts.md).
 
+## What gets written
 ### Audio file metadata
 
 Three fields are set at write time (`_write_audio`), and soundfile maps each onto whichever
@@ -181,7 +203,83 @@ audio so its presence means the day finished:
 pieces dropped because two started in the same second (see Known issues); that audio is unique
 and is written nowhere else.
 
-### Candidate: the same repair upstream, on packets
+# How to extract audio of a single event
+
+Use the `event-audio` command to pull a time window of broadband audio, run it through the same jitter/gap repair as the pipeline, and write a single continuous WAV to `./output/events` for listening.
+
+For example, to extract the M5.5 Blanco Fracture Zone earthquake recorded 2026/06/29 at Slope Base Seafloor (the event runs 11:35:44–11:42:04 UTC):
+
+```
+event-audio \
+--refdes "RS01SLBS-LJ01A-09-HYDBBA102" \
+--start "2026-06-29T11:35:44" \
+--end "2026-06-29T11:42:04" \
+--bandpass 2 1000 \
+--normalize \
+--speed 2 \
+--fade 1.0
+```
+
+`--speed` rewrites the sample rate `--bandpass LOW HIGH` isolates event of interest, `--normalize` boosts a quiet clip, and `--fade SEC` tapers both ends. `event-audio --help` for all arguments.
+
+# Hydrophone calibrations
+
+Cal files live in `metadata/cals` as netCDF, one per instrument per deployment, named `{refdes}_{deployment}.nc`, holding the manufacturer sheet values in dB re 1 V/uPa. pbp reads the `sensitivity` variable (the 0/90 average for directional cals; `sensitivity_0`/`sensitivity_90` are kept as the archival record).
+
+The volts-to-counts conversion happens in code, not in the cal files: stock mbari-pbp reads the 24-bit FLAC as float normalized to full scale, and `audio_to_spec.py` sets `VOLTAGE_MULTIPLIER = 3` (the ADC's 3 V full scale), so sheet sensitivities apply unmodified. This replaces the retired `rca_correction_cals` copies carrying a +128.9 dB offset, which paired with an int32-reading pbp fork. The two paths are bit-identical apart from 0.031 dB, the rounding in that old constant (exact: 20log10(2^23/3) = 128.931). The origin of that constant was not recorded in code or comments; it was traced back through old Abadi lab (UW) correspondence.
+
+### Calibration yamls are the source of truth
+
+ The reviewable source is one YAML spec per instrument in `metadata/cal_specs/`, holding every deployment (replacing `notebooks/03_PARSE_CAL_TO_NC.ipynb`):
+
+```
+cal-to-nc template > metadata/cal_specs/{refdes}.yaml   # scaffold, fill in from the PDF
+cal-to-nc build metadata/cal_specs/*.yaml --plot        # write the .nc plus a QA plot
+cal-to-nc check metadata/cal_specs/*.yaml               # CI: committed .nc still match specs
+cal-to-nc from-nc {refdes}                              # backfill a spec from existing .nc
+```
+
+Add a deployment by appending a block under `deployments` and re-running `build`, which warns if mean sensitivity jumps more than 6 dB between consecutive deployments. Specs take either a single `sens` or directional `sens0`/`sens90` (averaged into `sensitivity`). Frequencies default to kHz; set `freq_units: Hz` otherwise. Validation rejects length mismatches, non-ascending frequencies, and values outside -220 to -120 dB.
+
+Transcribing the PDF to yaml is the manual step.
+
+### Where the PDFs come from
+
+https://github.com/OOI-CabledArray/calibrationFiles/tree/master/HYDBBA — named `{asset_id}__{YYYYMMDD}.pdf`, matching the `asset_id` and `cal_date` in each spec. OOI asset management also has a `calibration/HYDBBA` directory, but the sensitivity tables exist only in these PDFs.
+
+### How a cal file is selected
+
+`find_cal_file()` in [audio_to_spec.py](ooi_hyd_tools/audio_to_spec.py) reads the deployment table live from OOI asset management:
+
+```
+https://raw.githubusercontent.com/oceanobservatories/asset-management/refs/heads/master/deployment/{node}_Deploy.csv
+```
+
+`{node}` is the first 8 characters of the refdes. The deployment whose window contains the date picks `cals/{refdes}_{deployment}.nc`; a missing file raises rather than silently producing uncalibrated output. That CSV's `sensor.uid` column also gives which physical asset was deployed, which is how a deployment maps to a cal sheet. `--apply-cals false` skips calibration.
+
+Built files carry `source_spec`, `source_pdf`, `sensitivity_units`, and `placeholder` when the cal is a stand-in — `find_cal_file` logs a run-time warning on placeholders.
+
+# Known issues to fix
+
+Ordered by size of the error on delivered spectrograms.
+
+| issue | where | detail |
+|---|---|---|
+| Reprocess | `HYDBBA302` 2016-07-12 to 2017-07-31 | deployment 3 had been calibrated with a 2018 sheet postdating a hardware rebuild. Cal is now correct; products from that window are **-4.68 dB off on average, up to 8.65 dB at 190.7 kHz** |
+| Reprocess | `HYDBBA102` 2016-07-17 to 2017-07-29 | deployment 3 had been calibrated with deployment 2's hydrophone. Cal is now correct; products from that window carry the old one, **-2.10 dB off on average, up to 5.40 dB at 90.4 kHz** |
+| Cal gap | all instruments, 10 Hz - 10 kHz | Sheet tables start at 10 kHz, so specs anchor 0 Hz to the 10 kHz value and flat-extrapolate below. Certificates print a separate low-frequency spot value (-170.1 dB @ 26 Hz vs -171.05 @ 10 kHz on `ATOSU-58324-00015__20231213`), implying **~1 dB error across the band carrying most of the energy**. Biases absolute levels, not trends |
+| Untracked | all instruments | Cal sheets bake a **preamp gain** (36 dB on sheets seen) into the quoted sensitivity, but specs have no field for it. A different gain would silently break the counts-per-volt chain |
+| Step change | all instruments, >12 kHz | The v1.7 bit-depth fix removed **+0.96 dB at the quiet end of 20-27 kHz** (+0.45 at 12-20 kHz, nothing below 12). Within single-measurement variability - the 20-27 kHz L05 spreads 7.6 dB in one day - but a *step* in a multi-year record. Note the reprocess date per instrument for trend work |
+| Placeholder | `HYDBBA105` dep 10 | Most recent available cal; the correct one is not yet published upstream |
+| No cal | `HYDBBA303` deps 4-9 (2017-07-31 to 2024-08-11), `HYDBBA103` deps 1-11 | No calibration transcribed, so `--flag viz`/`all` raises `FileNotFoundError` - roughly seven years of HYDBBA303. Assignments exist in `OOI-CabledArray/deployments`, so this is transcription work. **Deprioritised**: both are mooring-mounted |
+| Collision loss | all four seafloor instruments 2016-07-20; extent unknown | CI emits the real 5-min file plus a companion 16 µs later, and whole-second filenames cannot separate the pair. The guard keeps the longer piece and logs an ISSUE, but the discarded piece is **unique audio, not a duplicate** - confirmed by sample comparison, and one fragment starts 9,288 samples *before* the file it collides with. Lost on 2016-07-20: **2.08 / 3.02 / 1.50 / 0.50 s** on `102`/`106`/`302`/`105`, ~7 s of 96 h. Fixes are sub-second filenames (needs mbari-pbp) or merge-on-collision (needs overlap handling); both deferred as disproportionate |
+| Junk stub files | same instruments and day | A stub straddling the boundary (`01:44:59.998` vs `01:45:00.000`) rounds to its own second, so it never collides and survives as a 64-sample, 380-byte FLAC. `HYDBBA102` delivered 622 mseed for a nominal 288-file day, yielding 294 full FLAC + **152 stubs** + 176 superseded. Acoustically harmless but inflates file counts by a third and pollutes pbp metadata. A minimum-duration floor at write time would drop them; not implemented |
+| Duplicated packets | `HYDBBA105` and `HYDBBA302` 2023-06-15 17:25-17:35 UTC, extent unknown | CASE C (more samples than a 5-min window holds) on **two instruments ~450 km apart, same three windows, matching magnitudes**: +3.08 s at 17:25, +0.15 s at 17:30 and 17:35 on both. Simultaneity rules out an ocean or instrument cause and points to shore-side packetization, likely duplicated packets during a restart. Audio is kept whole and flagged per OEK, so those six FLACs run slightly over 300 s: **known-suspect for sample-accurate work**. First ever observation of CASE C; **the archive has never been swept for it** |
+| Degenerate timestamps | `HYDBBA102` 2023-06-15, extent unknown | Every trace in a file carries one **identical** timestamp - 383 traces all claiming `00:01:54.083000` - so labels span 0.25 s while the file holds 95.8 s of audio. That value sits 0-300 s after the file's nominal start, so naming from the first trace (OEK §9) scatters output across the day and **fragments the spectrogram**, though the archive's filenames are clean 5-min boundaries. Audio is written correctly; only placement is wrong. Detector: labels cannot span less wall-clock time than the audio they contain (10 of 11 sampled files fail). Fix is to name from the filename and skip gap-splitting when it trips; not implemented, **not surveyed elsewhere**. Root cause is upstream and looks bounded: `packet_log.py` only began setting a per-trace starttime in commits of 2023-09-10 / 2023-10-03 ("Adds starttime fix", "Implements Antelope starttime metadata fix"), so before that every trace inherited one header value. 2023-06-15 falls in that window. **Deployment dates unconfirmed**, so the end of the affected era is a guess until surveyed |
+
+Re-run `cal-to-nc build` after editing a spec. Calibrations exist for HYDBBA105, HYDBBA106, HYDBBA302 and HYDBBA303 since program inception; moorings since 2025.
+
+# Candidate: the same repair upstream, on packets
 
 Notes of what it would take to apply this at
 ingest.
@@ -221,82 +319,6 @@ at a time and must re-derive the anchor from its name.
 What is genuinely harder upstream is that there is no lookahead. A window must close before
 you can know whether a late packet is still coming, so the rule needs a lateness bound and an
 out-of-order buffer - neither of which a reader of a finished archive has to care about.
-
-# How to extract audio of a single event
-
-Use the `event-audio` command to pull a time window of broadband audio, run it through the same jitter/gap repair as the pipeline, and write a single continuous WAV to `./output/events` for listening.
-
-For example, to extract the M5.5 Blanco Fracture Zone earthquake recorded 2026/06/29 at Slope Base Seafloor (the event runs 11:35:44–11:42:04 UTC):
-
-```
-event-audio \
---refdes "RS01SLBS-LJ01A-09-HYDBBA102" \
---start "2026-06-29T11:35:44" \
---end "2026-06-29T11:42:04" \
---bandpass 2 1000 \
---normalize \
---speed 2 \
---fade 1.0
-```
-
-`--speed` rewrites the sample rate `--bandpass LOW HIGH` isolates event of interest, `--normalize` boosts a quiet clip, and `--fade SEC` tapers both ends. `event-audio --help` for all arguments.
-
-# Hydrophone calibrations
-
-Cal files live in `metadata/cals` as netCDF, one per instrument per deployment, named `{refdes}_{deployment}.nc`, holding the manufacturer sheet values in dB re 1 V/uPa. pbp reads the `sensitivity` variable (the 0/90 average for directional cals; `sensitivity_0`/`sensitivity_90` are kept as the archival record).
-
-The volts-to-counts conversion happens in code, not in the cal files: stock mbari-pbp reads the 24-bit FLAC as float normalized to full scale, and `audio_to_spec.py` sets `VOLTAGE_MULTIPLIER = 3` (the ADC's 3 V full scale), so sheet sensitivities apply unmodified. This replaces the retired `rca_correction_cals` copies carrying a +128.9 dB offset, which paired with an int32-reading pbp fork. The two paths are bit-identical apart from 0.031 dB, the rounding in that old constant (exact: 20log10(2^23/3) = 128.931).
-
-### Calibration yamls are the source of truth
-
- The reviewable source is one YAML spec per instrument in `metadata/cal_specs/`, holding every deployment (replacing `notebooks/03_PARSE_CAL_TO_NC.ipynb`):
-
-```
-cal-to-nc template > metadata/cal_specs/{refdes}.yaml   # scaffold, fill in from the PDF
-cal-to-nc build metadata/cal_specs/*.yaml --plot        # write the .nc plus a QA plot
-cal-to-nc check metadata/cal_specs/*.yaml               # CI: committed .nc still match specs
-cal-to-nc from-nc {refdes}                              # backfill a spec from existing .nc
-```
-
-Add a deployment by appending a block under `deployments` and re-running `build`, which warns if mean sensitivity jumps more than 6 dB between consecutive deployments. Specs take either a single `sens` or directional `sens0`/`sens90` (averaged into `sensitivity`). Frequencies default to kHz; set `freq_units: Hz` otherwise. Validation rejects length mismatches, non-ascending frequencies, and values outside -220 to -120 dB.
-
-Transcribing the PDF to yaml is the manual step.
-
-### Where the PDFs come from
-
-https://github.com/OOI-CabledArray/calibrationFiles/tree/master/HYDBBA — named `{asset_id}__{YYYYMMDD}.pdf`, matching the `asset_id` and `cal_date` in each spec. OOI asset management also has a `calibration/HYDBBA` directory, but the sensitivity tables exist only in these PDFs.
-
-### How a cal file is selected
-
-`find_cal_file()` in [audio_to_spec.py](ooi_hyd_tools/audio_to_spec.py) reads the deployment table live from OOI asset management:
-
-```
-https://raw.githubusercontent.com/oceanobservatories/asset-management/refs/heads/master/deployment/{node}_Deploy.csv
-```
-
-`{node}` is the first 8 characters of the refdes. The deployment whose window contains the date picks `cals/{refdes}_{deployment}.nc`; a missing file raises rather than silently producing uncalibrated output. That CSV's `sensor.uid` column also gives which physical asset was deployed, which is how a deployment maps to a cal sheet. `--apply-cals false` skips calibration.
-
-Built files carry `source_spec`, `source_pdf`, `sensitivity_units`, and `placeholder` when the cal is a stand-in — `find_cal_file` logs a run-time warning on placeholders.
-
-### Known issues to fix
-
-Ordered by size of the error on delivered spectrograms.
-
-| issue | where | detail |
-|---|---|---|
-| Reprocess | `HYDBBA302` 2016-07-12 to 2017-07-31 | deployment 3 had been calibrated with a 2018 sheet postdating a hardware rebuild. Cal is now correct; products from that window are **-4.68 dB off on average, up to 8.65 dB at 190.7 kHz** |
-| Reprocess | `HYDBBA102` 2016-07-17 to 2017-07-29 | deployment 3 had been calibrated with deployment 2's hydrophone. Cal is now correct; products from that window carry the old one, **-2.10 dB off on average, up to 5.40 dB at 90.4 kHz** |
-| Cal gap | all instruments, 10 Hz - 10 kHz | Sheet tables start at 10 kHz, so specs anchor 0 Hz to the 10 kHz value and flat-extrapolate below. Certificates print a separate low-frequency spot value (-170.1 dB @ 26 Hz vs -171.05 @ 10 kHz on `ATOSU-58324-00015__20231213`), implying **~1 dB error across the band carrying most of the energy**. Biases absolute levels, not trends |
-| Untracked | all instruments | Cal sheets bake a **preamp gain** (36 dB on sheets seen) into the quoted sensitivity, but specs have no field for it. A different gain would silently break the counts-per-volt chain |
-| Step change | all instruments, >12 kHz | The v1.7 bit-depth fix removed **+0.96 dB at the quiet end of 20-27 kHz** (+0.45 at 12-20 kHz, nothing below 12). Within single-measurement variability - the 20-27 kHz L05 spreads 7.6 dB in one day - but a *step* in a multi-year record. Note the reprocess date per instrument for trend work |
-| Placeholder | `HYDBBA105` dep 10 | Most recent available cal; the correct one is not yet published upstream |
-| No cal | `HYDBBA303` deps 4-9 (2017-07-31 to 2024-08-11), `HYDBBA103` deps 1-11 | No calibration transcribed, so `--flag viz`/`all` raises `FileNotFoundError` - roughly seven years of HYDBBA303. Assignments exist in `OOI-CabledArray/deployments`, so this is transcription work. **Deprioritised**: both are mooring-mounted |
-| Collision loss | all four seafloor instruments 2016-07-20; extent unknown | CI emits the real 5-min file plus a companion 16 µs later, and whole-second filenames cannot separate the pair. The guard keeps the longer piece and logs an ISSUE, but the discarded piece is **unique audio, not a duplicate** - confirmed by sample comparison, and one fragment starts 9,288 samples *before* the file it collides with. Lost on 2016-07-20: **2.08 / 3.02 / 1.50 / 0.50 s** on `102`/`106`/`302`/`105`, ~7 s of 96 h. Fixes are sub-second filenames (needs mbari-pbp) or merge-on-collision (needs overlap handling); both deferred as disproportionate |
-| Junk stub files | same instruments and day | A stub straddling the boundary (`01:44:59.998` vs `01:45:00.000`) rounds to its own second, so it never collides and survives as a 64-sample, 380-byte FLAC. `HYDBBA102` delivered 622 mseed for a nominal 288-file day, yielding 294 full FLAC + **152 stubs** + 176 superseded. Acoustically harmless but inflates file counts by a third and pollutes pbp metadata. A minimum-duration floor at write time would drop them; not implemented |
-| Duplicated packets | `HYDBBA105` and `HYDBBA302` 2023-06-15 17:25-17:35 UTC, extent unknown | CASE C (more samples than a 5-min window holds) on **two instruments ~450 km apart, same three windows, matching magnitudes**: +3.08 s at 17:25, +0.15 s at 17:30 and 17:35 on both. Simultaneity rules out an ocean or instrument cause and points to shore-side packetization, likely duplicated packets during a restart. Audio is kept whole and flagged per OEK, so those six FLACs run slightly over 300 s: **known-suspect for sample-accurate work**. First ever observation of CASE C; **the archive has never been swept for it** |
-| Degenerate timestamps | `HYDBBA102` 2023-06-15, extent unknown | Every trace in a file carries one **identical** timestamp - 383 traces all claiming `00:01:54.083000` - so labels span 0.25 s while the file holds 95.8 s of audio. That value sits 0-300 s after the file's nominal start, so naming from the first trace (OEK §9) scatters output across the day and **fragments the spectrogram**, though the archive's filenames are clean 5-min boundaries. Audio is written correctly; only placement is wrong. Detector: labels cannot span less wall-clock time than the audio they contain (10 of 11 sampled files fail). Fix is to name from the filename and skip gap-splitting when it trips; not implemented, **not surveyed elsewhere**. Root cause is upstream and looks bounded: `packet_log.py` only began setting a per-trace starttime in commits of 2023-09-10 / 2023-10-03 ("Adds starttime fix", "Implements Antelope starttime metadata fix"), so before that every trace inherited one header value. 2023-06-15 falls in that window. **Deployment dates unconfirmed**, so the end of the affected era is a guess until surveyed |
-
-Re-run `cal-to-nc build` after editing a spec. Calibrations exist for HYDBBA105, HYDBBA106, HYDBBA302 and HYDBBA303 since program inception; moorings since 2025.
 
 # OOI reference designators (refdes) for broadband hydrophones and approximate lat/lon:
 
