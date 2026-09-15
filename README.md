@@ -20,6 +20,7 @@ https://github.com/lifewatch/pypam
 | section | what it covers |
 | --- | --- |
 | [Converting mseed to flac or wav](#how-to-convert-ooi-mseed-archives-to-flac-or-wav) | the CLI, and how the gap repair, naming and bit depth work |
+| [Pipeline stages](#pipeline-stages) | what each `--flag` reads and writes |
 | [What gets written](#what-gets-written) | per-file header tags and the per-day manifest |
 | [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
 | [Hydrophone calibrations](#hydrophone-calibrations) | cal specs, where the sheets come from, how one is chosen |
@@ -59,6 +60,27 @@ Run with `--flag all` to generate hybrid millidecade spectrograms.
 `acoustic-pipeline --help` To learn more about each argument. 
 
 Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
+
+### Pipeline stages
+
+`--flag` picks which stage runs. Broadband spectrograms are built from FLAC on disk, not
+from mseed, so the two broadband stages can be run separately:
+
+| `--flag` | reads | writes |
+| --- | --- | --- |
+| `audio` | mseed archive | `./data/flac/YYYY_MM_DD/INSTRUMENT/` plus the day's manifest |
+| `spectrogram` | FLAC already in `./data` | `./output/INSTRUMENT_YYYYMMDD.{nc,png}` |
+| `all` | mseed archive | both, in one pass |
+| `low_freq` | Earthscope, via `ooipy` | `./output/INSTRUMENT_YYYYMMDD.png` |
+| `obs` | mseed archive | OBS seismometer plots |
+
+`audio` and `all` always rebuild from the archive; neither skips a day that is already on
+disk. To redo only the spectrogram - the usual case when pbp failed but the audio is fine -
+run `--flag spectrogram`, which reuses the FLAC and never touches the raw data server. It
+raises `FileNotFoundError` if the day's manifest is missing.
+
+`low_freq` is a separate path: it pulls from Earthscope rather than the raw archive and
+never reads `./data/flac`, so the FLAC check does not apply to it.
 
 ## How the repair works
 ### Jitter and gap repair
@@ -271,7 +293,7 @@ Ordered by size of the error on delivered spectrograms.
 | Untracked | all instruments | Cal sheets bake a **preamp gain** (36 dB on sheets seen) into the quoted sensitivity, but specs have no field for it. A different gain would silently break the counts-per-volt chain |
 | Step change | all instruments, >12 kHz | The v1.7 bit-depth fix removed **+0.96 dB at the quiet end of 20-27 kHz** (+0.45 at 12-20 kHz, nothing below 12). Within single-measurement variability - the 20-27 kHz L05 spreads 7.6 dB in one day - but a *step* in a multi-year record. Note the reprocess date per instrument for trend work |
 | Placeholder | `HYDBBA105` dep 10 | Most recent available cal; the correct one is not yet published upstream |
-| No cal | `HYDBBA303` deps 4-9 (2017-07-31 to 2024-08-11), `HYDBBA103` deps 1-11 | No calibration transcribed, so `--flag viz`/`all` raises `FileNotFoundError` - roughly seven years of HYDBBA303. Assignments exist in `OOI-CabledArray/deployments`, so this is transcription work. **Deprioritised**: both are mooring-mounted |
+| No cal | `HYDBBA303` deps 4-9 (2017-07-31 to 2024-08-11), `HYDBBA103` deps 1-11 | No calibration transcribed, so `--flag spectrogram`/`all` raises `FileNotFoundError` - roughly seven years of HYDBBA303. Assignments exist in `OOI-CabledArray/deployments`, so this is transcription work. **Deprioritised**: both are mooring-mounted |
 | Collision loss | all four seafloor instruments 2016-07-20; extent unknown | CI emits the real 5-min file plus a companion 16 µs later, and whole-second filenames cannot separate the pair. The guard keeps the longer piece and logs an ISSUE, but the discarded piece is **unique audio, not a duplicate** - confirmed by sample comparison, and one fragment starts 9,288 samples *before* the file it collides with. Lost on 2016-07-20: **2.08 / 3.02 / 1.50 / 0.50 s** on `102`/`106`/`302`/`105`, ~7 s of 96 h. Fixes are sub-second filenames (needs mbari-pbp) or merge-on-collision (needs overlap handling); both deferred as disproportionate |
 | Junk stub files | same instruments and day | A stub straddling the boundary (`01:44:59.998` vs `01:45:00.000`) rounds to its own second, so it never collides and survives as a 64-sample, 380-byte FLAC. `HYDBBA102` delivered 622 mseed for a nominal 288-file day, yielding 294 full FLAC + **152 stubs** + 176 superseded. Acoustically harmless but inflates file counts by a third and pollutes pbp metadata. A minimum-duration floor at write time would drop them; not implemented |
 | Duplicated packets | `HYDBBA105` and `HYDBBA302` 2023-06-15 17:25-17:35 UTC, extent unknown | CASE C (more samples than a 5-min window holds) on **two instruments ~450 km apart, same three windows, matching magnitudes**: +3.08 s at 17:25, +0.15 s at 17:30 and 17:35 on both. Simultaneity rules out an ocean or instrument cause and points to shore-side packetization, likely duplicated packets during a restart. Audio is kept whole and flagged per OEK, so those six FLACs run slightly over 300 s: **known-suspect for sample-accurate work**. First ever observation of CASE C; **the archive has never been swept for it** |

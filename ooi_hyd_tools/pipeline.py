@@ -83,11 +83,6 @@ class PrefectRunner(Runner):
         )
 
 
-class CeleryRunner(Runner):
-    def run(self, date: datetime, params: dict) -> None:
-        raise NotImplementedError("CeleryRunner is not yet implemented")
-
-
 @click.command()
 @click.option(
     "--start-date",
@@ -159,11 +154,14 @@ class CeleryRunner(Runner):
 )
 @click.option(
     "--flag",
-    type=click.Choice(["audio", "viz", "all", "low_freq", "obs"], case_sensitive=False),
+    type=click.Choice(
+        ["audio", "spectrogram", "all", "low_freq", "obs"], case_sensitive=False
+    ),
     default="all",
     show_default=True,
-    help="Which stage of pipeline to run: 'audio' converts mseed to audio for broadband hydrophoines,"
-    " 'viz' converts audio to spectrograms for broadband, 'all' runs both 'audio' and 'viz' broadband routines."
+    help="Which stage of pipeline to run: 'audio' converts mseed to audio for broadband hydrophones,"
+    " 'spectrogram' builds broadband spectrograms from FLAC already in ./data and fails if none is"
+    " there, 'all' runs both broadband routines from the mseed archive."
     " 'low_freq' generates spectrograms for low freq hydrophones, 'obs' processes OBS seismometer data.",
 )
 @click.option(
@@ -176,11 +174,11 @@ class CeleryRunner(Runner):
 )
 @click.option(
     "--runner",
-    type=click.Choice(["local", "prefect", "celery"], case_sensitive=False),
+    type=click.Choice(["local", "prefect"], case_sensitive=False),
     default="local",
     show_default=True,
-    help="Runner backend: 'local' runs in-process, 'prefect' dispatches to Prefect cloud deployment parallelized by date,"
-    " 'celery' dispatches to Celery workers (not yet implemented).",
+    help="Runner backend: 'local' runs in-process, 'prefect' dispatches to a Prefect cloud"
+    " deployment parallelized by date.",
 )
 def run_acoustic_pipeline(
     start_date,
@@ -207,7 +205,6 @@ def run_acoustic_pipeline(
     runners = {
         "local": LocalRunner(),
         "prefect": PrefectRunner(deployment_name),
-        "celery": CeleryRunner(),
     }
     _runner = runners[runner]
 

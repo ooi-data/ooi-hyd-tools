@@ -539,6 +539,22 @@ def compare_flac_wav(hyd_refdes, hyd, png_dir, date_str):
     plt.close()
 
 
+def find_flac_day(hyd_refdes, date):
+    """The manifest for a day of FLAC already on disk, or None.
+
+    Spectrograms are built from FLAC in ./data, not from mseed, so this answers "is it
+    there" up front rather than letting pbp fail on an empty metadata index.
+    """
+    instrument, date_str = hyd_refdes[-9:], date.replace("/", "_")
+    flac_dir = Path.cwd() / f"data/flac/{date_str}/{instrument}"
+    manifest = flac_dir / f"{instrument}_{date.replace('/', '')}_manifest.json"
+    if not manifest.is_file():
+        return None
+    m = json.loads(manifest.read_text())
+    m["on_disk"] = len(list(flac_dir.glob("*.flac")))
+    return m
+
+
 @flow(log_prints=True)
 def acoustic_flow_oneday(
     hyd_refdes,
@@ -577,7 +593,19 @@ def acoustic_flow_oneday(
         if write_wav and not normalize_traces:
             compare_flac_wav(hyd_refdes, hyd, png_dir, date_str)
 
-    if flag == "viz" or flag == "all":
+    if flag == "spectrogram" or flag == "all":
+        m = find_flac_day(hyd_refdes, date)
+        if m is None:
+            raise FileNotFoundError(
+                f"no flac for {hyd_refdes} {date} - run --flag audio first"
+            )
+        if m["on_disk"] != m["files_written"]:
+            # leftovers from an earlier run of this day; pbp indexes whatever is there
+            logger.warning(f"{m['on_disk']} flac on disk, manifest says {m['files_written']}")
+        logger.info(
+            f"spectrogram from {m['files_written']} flac, {m['day_coverage_pct']}% of the "
+            f"day, written by {m['written_by']}"
+        )
         audio_to_spec(date, "flac", hyd_refdes, apply_cals, freq_lims)
 
     if flag == "low_freq":
