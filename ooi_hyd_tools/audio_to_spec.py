@@ -199,7 +199,14 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_
     logger.info(result.dataset)  # sanity check
 
     nc_filename = output_dir / f"{instrument}_{start_date}.nc"
-    ds = xr.open_dataset(nc_filename, engine="h5netcdf")
+    ds = xr.load_dataset(nc_filename, engine="h5netcdf")  # load, so the file can be rewritten
+
+    # globalAttributes.yaml is static, so every instrument inherited HYDBBA106's position
+    # and a platform listing all six. Set both from the refdes actually being processed.
+    lat, lon = HYDBB_COORDS[hyd_refdes]
+    ds.attrs["geospatial_bounds"] = f"POINT ({lat} {lon})"
+    ds.attrs["platform"] = hyd_refdes
+    ds.to_netcdf(nc_filename, engine="h5netcdf")
 
     plot_dataset_summary(
         ds,
