@@ -164,9 +164,13 @@ class HydrophoneDay:
                 logger.info(f"No addendum for {day_str}")
                 addendum_list = []
 
-        except Exception as e:
-            logger.warning(f"Client response: {e}")
+        except FileNotFoundError:
+            logger.warning(f"No directory on the raw data server for {day_str}")
             return None
+        except Exception as e:
+            # transient server/network failure - raise so the task retries instead of
+            # silently writing off the day as "no data"
+            raise RuntimeError(f"listing failed for {mainurl}") from e
 
         data_url_list.extend(addendum_list)
 
