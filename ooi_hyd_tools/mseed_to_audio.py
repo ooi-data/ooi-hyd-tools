@@ -21,6 +21,7 @@ from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.low_freq import run_low_freq_oneday
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
 from ooi_hyd_tools.utils import select_logger
+from ooi_hyd_tools.thresholds import COUNT_THRESHOLD
 from ooi_hyd_tools.seismometer import run_obs_viz
 
 
@@ -52,17 +53,6 @@ INT24_SHIFT = 8
 # CI writes mseed in 5-min files on fixed startpoints (00:00, 00:05, ...), so a complete
 # file holds NOMINAL_SECONDS * sampling_rate samples - 19,200,000 at 64 kHz.
 NOMINAL_SECONDS = 300
-
-# How far short of a full 5 minutes the sample count may fall and still count as complete.
-# CI's trace packing often leaves a partial burst at one end, so files are not always exactly
-# 19,200,000;
-# (OEK TrHld1)
-COUNT_THRESHOLD = 0.01
-
-# How long a gap must be before it means recording was genuinely lost rather than
-# mislabelled. Only consulted once the sample count says something is missing.
-# (OEK TrHld2; the default for --gap-threshold)
-GAP_THRESHOLD = 0.023
 
 # == runtime ==
 # The raw data server drops connections mid-transfer when it is busy. Retry the one file

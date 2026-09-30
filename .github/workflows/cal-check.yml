@@ -13,13 +13,8 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -el {0} # login shell so the conda env is active
     steps:
       - uses: actions/checkout@v4
-      - uses: mamba-org/setup-micromamba@v2
-        with:
-          environment-file: ci_environment.yml
-          cache-environment: true
-      - run: python -m ooi_hyd_tools.cal_to_nc check metadata/cal_specs/*.yaml
+      - uses: astral-sh/setup-uv@v6
+      - run: uv venv --python 3.11 && uv pip install -r ci/requirements-check.txt
+      - run: .venv/bin/python -m ooi_hyd_tools.cal_to_nc check metadata/cal_specs/*.yaml

@@ -6,8 +6,9 @@ import soundfile as sf
 from pathlib import Path
 from datetime import timedelta
 
-from ooi_hyd_tools.mseed_to_audio import HydrophoneDay, GAP_THRESHOLD
+from ooi_hyd_tools.mseed_to_audio import HydrophoneDay
 from ooi_hyd_tools.utils import select_logger
+from ooi_hyd_tools.thresholds import GAP_THRESHOLD
 
 """
 Pull a user-specified window of broadband hydrophone audio from the OOI raw data
