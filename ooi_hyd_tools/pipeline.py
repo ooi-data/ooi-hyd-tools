@@ -4,7 +4,8 @@ import yaml
 from abc import ABC, abstractmethod
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta, timezone
-from ooi_hyd_tools.utils import select_logger, GAP_THRESHOLD
+from ooi_hyd_tools.utils import select_logger
+from ooi_hyd_tools.thresholds import GAP_THRESHOLD
 
 logger = select_logger()
 

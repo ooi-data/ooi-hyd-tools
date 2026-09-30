@@ -1,20 +1,25 @@
 name: dispatch-check
 
-# QAQC_dashboard dispatches prefect runs from requirements-dispatch.txt, not the full image.
+# QAQC_dashboard dispatches prefect runs from ci/dispatch_env.yml, not the full image.
 # Fails if pipeline.py picks up an import that bare env can't satisfy.
 on:
   pull_request:
     paths:
       - "ooi_hyd_tools/**.py"
       - "ooi_hyd_tools/config/**"
-      - "requirements-dispatch.txt"
+      - "ci/dispatch_env.yml"
   workflow_dispatch:
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0} # login shell so the conda env is active
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv venv --python 3.11 && uv pip install -r requirements-dispatch.txt
-      - run: .venv/bin/python -m ooi_hyd_tools.pipeline --help
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: ci/dispatch_env.yml
+          cache-environment: true
+      - run: python -m ooi_hyd_tools.pipeline --help

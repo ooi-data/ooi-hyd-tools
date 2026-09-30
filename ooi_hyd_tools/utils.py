@@ -1,10 +1,5 @@
 import os
 
-# How long a gap must be before it means recording was genuinely lost rather than
-# mislabelled. Only consulted once the sample count says something is missing.
-# (OEK TrHld2; the default for --gap-threshold)
-GAP_THRESHOLD = 0.023
-
 
 def select_logger():
     from prefect import get_run_logger

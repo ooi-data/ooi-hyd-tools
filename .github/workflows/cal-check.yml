@@ -20,6 +20,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: mamba-org/setup-micromamba@v2
         with:
-          environment-file: ci_environment.yml
+          environment-file: ci/check_env.yml
           cache-environment: true
       - run: python -m ooi_hyd_tools.cal_to_nc check metadata/cal_specs/*.yaml
