@@ -19,7 +19,7 @@ deployments:
   version:
   tags: []
   description:
-  entrypoint: ./ooi_hyd_tools/pipeline.py:acoustic_flow_oneday
+  entrypoint: ./ooi_hyd_tools/mseed_to_audio.py:acoustic_flow_oneday
   parameters: {}
   work_pool:
     name: hydrophone-pool
@@ -33,7 +33,7 @@ deployments:
   version:
   tags: []
   description:
-  entrypoint: ./ooi_hyd_tools/pipeline.py:acoustic_flow_oneday
+  entrypoint: ./ooi_hyd_tools/mseed_to_audio.py:acoustic_flow_oneday
   parameters: {}
   work_pool:
     name: hydrophone-pool
@@ -45,7 +45,7 @@ deployments:
   version:
   tags: []
   description:
-  entrypoint: ./ooi_hyd_tools/pipeline.py:acoustic_flow_oneday
+  entrypoint: ./ooi_hyd_tools/mseed_to_audio.py:acoustic_flow_oneday
   parameters: {}
   work_pool:
     name: hydrophone-pool
