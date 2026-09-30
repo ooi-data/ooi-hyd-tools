@@ -1,0 +1,6 @@
+# Minimal env for `python -m ooi_hyd_tools.pipeline --runner prefect`, which only dispatches
+# to the ECS deployment. QAQC_dashboard installs this instead of pulling the full image.
+prefect==3.8.6 # matches the image
+click>=7
+pyyaml>=6
+loguru
