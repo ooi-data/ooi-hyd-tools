@@ -4,8 +4,7 @@ import yaml
 from abc import ABC, abstractmethod
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta, timezone
-from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday, GAP_THRESHOLD
-from ooi_hyd_tools.utils import select_logger
+from ooi_hyd_tools.utils import select_logger, GAP_THRESHOLD
 
 logger = select_logger()
 
@@ -65,6 +64,9 @@ class Runner(ABC):
 
 class LocalRunner(Runner):
     def run(self, date: datetime, params: dict) -> None:
+        # imported here so --runner prefect dispatch needs only prefect, not the science stack
+        from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
+
         acoustic_flow_oneday(**params)
 
 

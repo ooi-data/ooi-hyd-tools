@@ -59,10 +59,8 @@ NOMINAL_SECONDS = 300
 # (OEK TrHld1)
 COUNT_THRESHOLD = 0.01
 
-# How long a gap must be before it means recording was genuinely lost rather than
-# mislabelled. Only consulted once the sample count says something is missing.
-# (OEK TrHld2; the default for --gap-threshold)
-GAP_THRESHOLD = 0.023
+# GAP_THRESHOLD (OEK TrHld2) lives in utils.py so the prefect dispatcher can import it
+# without pulling in this module's science stack
 
 # == runtime ==
 # The raw data server drops connections mid-transfer when it is busy. Retry the one file
