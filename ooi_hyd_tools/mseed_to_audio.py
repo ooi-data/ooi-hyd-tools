@@ -121,13 +121,34 @@ class HydrophoneDay:
         str_date,
         gap_threshold,
         clean_list=None,
+        mseed_root=None,
     ):
         self.refdes = refdes
         self.date = datetime.strptime(str_date, "%Y/%m/%d")
         self.gap_threshold = gap_threshold
-        self.mseed_urls = self.get_mseed_urls(str_date, refdes)
+        self.mseed_urls = (
+            self.get_local_mseed_paths(str_date, refdes, Path(mseed_root).expanduser())
+            if mseed_root
+            else self.get_mseed_urls(str_date, refdes)
+        )
         self.clean_list = clean_list
         self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
+
+    def get_local_mseed_paths(self, day_str, refdes, root):
+        """list a day from a local mirror laid out as ROOT/<refdes>/YYYY/MM/DD/[addendum/]"""
+        logger = select_logger()
+        if not (root / refdes).is_dir():
+            # an unmounted share looks exactly like a missing day, so fail instead of skipping
+            raise FileNotFoundError(f"{root / refdes} not found - is the archive mounted?")
+        day_dir = root / refdes / day_str
+        logger.info(day_dir)
+
+        paths = [str(p) for p in sorted(day_dir.glob("*.mseed"))]
+        paths += [str(p) for p in sorted(day_dir.glob("addendum/*.mseed"))]
+        if not paths:
+            logger.warning(f"No local mseed for {day_str} in {day_dir}")
+            return None
+        return paths
 
     def get_mseed_urls(self, day_str, refdes):
         logger = select_logger()
@@ -384,9 +405,10 @@ def convert_mseed_to_audio(
     format,
     normalize_traces,
     write_wav,
+    mseed_root=None,
 ):
     logger = select_logger()
-    hyd = HydrophoneDay(hyd_refdes, date, gap_threshold)
+    hyd = HydrophoneDay(hyd_refdes, date, gap_threshold, mseed_root=mseed_root)
 
     hyd.read_and_repair_gaps()
 
@@ -562,6 +584,7 @@ def acoustic_flow_oneday(
     s3_sync,
     flag,
     obs_run_type,
+    mseed_root=None,
 ):
     logger = select_logger()
     # log python package versions on cloud machine
@@ -576,6 +599,7 @@ def acoustic_flow_oneday(
             normalize_traces=normalize_traces,
             gap_threshold=gap_threshold,
             write_wav=write_wav,
+            mseed_root=mseed_root,
         )
         if hyd is None:
             logger.warning(f"No data availale for {date}. Moving to next day.")

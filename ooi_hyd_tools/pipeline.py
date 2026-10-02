@@ -64,11 +64,15 @@ class Runner(ABC):
 
 
 class LocalRunner(Runner):
+    def __init__(self, mseed_root=None):
+        self.mseed_root = mseed_root
+
     def run(self, date: datetime, params: dict) -> None:
         # imported here so --runner prefect dispatch needs only prefect, not the science stack
         from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
 
-        acoustic_flow_oneday(**params)
+        # mseed_root stays out of params: those go to the cloud deployments, which can't see it
+        acoustic_flow_oneday(**params, mseed_root=self.mseed_root)
 
 
 class PrefectRunner(Runner):
@@ -176,6 +180,14 @@ class PrefectRunner(Runner):
     "also includes 30 day span.",
 )
 @click.option(
+    "--mseed-root",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Read broadband mseed from a local mirror laid out as ROOT/<refdes>/YYYY/MM/DD/"
+    " (e.g. ~/ooi/san_data) instead of the OOI raw data server. Only with --runner local"
+    " and --flag audio or all.",
+)
+@click.option(
     "--runner",
     type=click.Choice(["local", "prefect"], case_sensitive=False),
     default="local",
@@ -196,8 +208,14 @@ def run_acoustic_pipeline(
     s3_sync,
     flag,
     obs_run_type,
+    mseed_root,
     runner,
 ):
+    if mseed_root and runner != "local":
+        raise click.UsageError("--mseed-root needs --runner local; ECS can't see a local mount")
+    if mseed_root and flag not in ("audio", "all"):
+        raise click.UsageError("--mseed-root only feeds the broadband mseed -> flac stage")
+
     config_dict = OBS_CONFIG_DICT if flag == "obs" else HYD_CONFIG_DICT
     deployment_name = (
         f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes][obs_run_type]}"
@@ -206,7 +224,7 @@ def run_acoustic_pipeline(
     )
 
     runners = {
-        "local": LocalRunner(),
+        "local": LocalRunner(mseed_root),
         "prefect": PrefectRunner(deployment_name),
     }
     _runner = runners[runner]

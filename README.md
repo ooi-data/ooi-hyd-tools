@@ -20,6 +20,7 @@ https://github.com/lifewatch/pypam
 | section | what it covers |
 | --- | --- |
 | [Converting mseed to flac or wav](#how-to-convert-ooi-mseed-archives-to-flac-or-wav) | the CLI, and how the gap repair, naming and bit depth work |
+| [Running from a local mirror](#running-from-a-local-mirror) | reading mseed from a mounted copy of the archive instead of the raw data server |
 | [Pipeline stages](#pipeline-stages) | what each `--flag` reads and writes |
 | [What gets written](#what-gets-written) | per-file header tags and the per-day manifest |
 | [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
@@ -56,10 +57,35 @@ acoustic-pipeline \
 --end-date "2025/03/15" \
 --flag audio
 ```
-Run with `--flag all` to generate hybrid millidecade spectrograms.
+`--flag all` (the default) also generates hybrid millidecade spectrograms.
 `acoustic-pipeline --help` To learn more about each argument. 
 
 Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
+
+### Running from a local mirror
+
+On a machine with the raw archive mounted, `--mseed-root` reads the broadband mseed from disk
+instead of the OOI raw data server:
+
+```
+acoustic-pipeline \
+--hyd-refdes "CE02SHBP-LJ01D-11-HYDBBA106" \
+--start-date "2024/11/03" \
+--mseed-root ~/ooi/san_data \
+--runner local
+```
+
+The mirror must be laid out as `ROOT/<refdes>/YYYY/MM/DD/`, with an optional `addendum/` in
+each day, and keep the archive's filenames (`OO-HYEA2--YDH-<start>.mseed`) - each file's
+nominal start is read from its name. Anything else in a day directory, such as the
+per-segment `.png`, is ignored. Repaired traces are sample-identical to a remote run of the
+same files.
+
+- A day with no mseed is skipped, as on the remote archive. A missing `ROOT/<refdes>` raises
+  instead, since an unmounted share would otherwise look like a run of empty days.
+- Only the broadband `audio` and `all` stages read the mirror. `--mseed-root` is refused with
+  `--runner prefect` (the cloud workers cannot see a local mount) and with `low_freq`, `obs`
+  or `spectrogram`, which do not read this archive.
 
 ### Pipeline stages
 
@@ -68,19 +94,19 @@ from mseed, so the two broadband stages can be run separately:
 
 | `--flag` | reads | writes |
 | --- | --- | --- |
-| `audio` | mseed archive | `./data/flac/YYYY_MM_DD/INSTRUMENT/` plus the day's manifest |
+| `audio` | mseed archive, or a local mirror with `--mseed-root` | `./data/flac/YYYY_MM_DD/INSTRUMENT/` plus the day's manifest |
 | `spectrogram` | FLAC already in `./data` | `./output/INSTRUMENT_YYYYMMDD.{nc,png}` |
-| `all` | mseed archive | both, in one pass |
+| `all` | same as `audio` | both, in one pass |
 | `low_freq` | Earthscope, via `ooipy` | `./output/INSTRUMENT_YYYYMMDD.png` |
-| `obs` | mseed archive | OBS seismometer plots |
+| `obs` | Earthscope FDSN web service | `./output/SITE/` seismometer plots |
 
 `audio` and `all` always rebuild from the archive; neither skips a day that is already on
 disk. To redo only the spectrogram - the usual case when pbp failed but the audio is fine -
 run `--flag spectrogram`, which reuses the FLAC and never touches the raw data server. It
 raises `FileNotFoundError` if the day's manifest is missing.
 
-`low_freq` is a separate path: it pulls from Earthscope rather than the raw archive and
-never reads `./data/flac`, so the FLAC check does not apply to it.
+`low_freq` and `obs` are separate paths: both pull from Earthscope rather than the raw
+archive and never read `./data/flac`, so the FLAC check does not apply to them.
 
 ## How the repair works
 ### Jitter and gap repair
@@ -299,7 +325,7 @@ Ordered by size of the error on delivered spectrograms.
 | Duplicated packets | `HYDBBA105` and `HYDBBA302` 2023-06-15 17:25-17:35 UTC, extent unknown | CASE C (more samples than a 5-min window holds) on **two instruments ~450 km apart, same three windows, matching magnitudes**: +3.08 s at 17:25, +0.15 s at 17:30 and 17:35 on both. Simultaneity rules out an ocean or instrument cause and points to shore-side packetization, likely duplicated packets during a restart. Audio is kept whole and flagged per OEK, so those six FLACs run slightly over 300 s: **known-suspect for sample-accurate work**. First ever observation of CASE C; **the archive has never been swept for it** |
 | Degenerate timestamps | `HYDBBA102` 2023-06-15, extent unknown | Every trace in a file carries one **identical** timestamp - 383 traces all claiming `00:01:54.083000` - so labels span 0.25 s while the file holds 95.8 s of audio. That value sits 0-300 s after the file's nominal start, so naming from the first trace (OEK §9) scatters output across the day and **fragments the spectrogram**, though the archive's filenames are clean 5-min boundaries. Audio is written correctly; only placement is wrong. Detector: labels cannot span less wall-clock time than the audio they contain (10 of 11 sampled files fail). Fix is to name from the filename and skip gap-splitting when it trips; not implemented, **not surveyed elsewhere**. Root cause is upstream and looks bounded: `packet_log.py` only began setting a per-trace starttime in commits of 2023-09-10 / 2023-10-03 ("Adds starttime fix", "Implements Antelope starttime metadata fix"), so before that every trace inherited one header value. 2023-06-15 falls in that window. **Deployment dates unconfirmed**, so the end of the affected era is a guess until surveyed |
 
-Re-run `cal-to-nc build` after editing a spec. Calibrations exist for HYDBBA105, HYDBBA106, HYDBBA302 and HYDBBA303 since program inception; moorings since 2025.
+Re-run `cal-to-nc build` after editing a spec. The four seafloor instruments (HYDBBA102, HYDBBA105, HYDBBA106, HYDBBA302) have calibrations from deployment 1; the two mooring-mounted ones only recently - HYDBBA303 deployments 10-11, HYDBBA103 deployment 12 (see No cal above).
 
 # Candidate: the same repair upstream, on packets
 
