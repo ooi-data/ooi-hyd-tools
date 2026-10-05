@@ -1,5 +1,5 @@
 from pbp.meta_gen.gen_iclisten import IcListenMetadataGenerator
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import xarray as xr
 import polars as pl
 import matplotlib.pyplot as plt
@@ -101,7 +101,8 @@ def find_cal_file(refdes, date_str):
     node = refdes[:8]
     current_utc_datetime = datetime.now(timezone.utc)
 
-    date = datetime.strptime(date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
+    day_start = datetime.strptime(date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
+    day_end = day_start + timedelta(days=1)
 
     # load deployments from OOI asset management
     df = pl.read_csv(
@@ -126,16 +127,34 @@ def find_cal_file(refdes, date_str):
         pl.col("stopDateTime").fill_null(current_utc_datetime).alias("stopDateTime")
     )
 
-    deploy_df = df.filter((pl.col("startDateTime") < date) & (pl.col("stopDateTime") > date))
-    deployment_number = deploy_df["deploymentNumber"]
+    # pbp applies one sensitivity to the whole day, so a turnover day takes the cal of the
+    # deployment covering most of it (the incoming one on an exact tie)
+    df = df.with_columns(
+        (
+            pl.min_horizontal("stopDateTime", pl.lit(day_end))
+            - pl.max_horizontal("startDateTime", pl.lit(day_start))
+        ).alias("overlap")
+    ).filter(pl.col("overlap") > timedelta(0))
+    if df.is_empty():
+        raise FileNotFoundError(
+            f"no {refdes} deployment overlaps {date_str} - not deployed, so no cal to apply"
+        )
+    best = df.sort(["overlap", "startDateTime"], descending=True).row(0, named=True)
+    deployment_number = best["deploymentNumber"]
+    if best["overlap"] < timedelta(days=1):
+        hours = best["overlap"].total_seconds() / 3600
+        logger.warning(
+            f"{date_str} is a turnover day: deployment {deployment_number} covers {hours:.1f} h "
+            f"of it, and its cal is applied to the whole day"
+        )
 
-    cal_file_path_str = f"./metadata/cals/{refdes}_{str(deployment_number[0])}.nc"
+    cal_file_path_str = f"./metadata/cals/{refdes}_{deployment_number}.nc"
     cal_file_path = Path(cal_file_path_str)
 
     if not cal_file_path.exists():
         raise FileNotFoundError(f"No calibration file found for {date_str}")
 
-    logger.info(f"{date_str} falls under deployment < {deployment_number[0]} > for {refdes}")
+    logger.info(f"{date_str} falls under deployment < {deployment_number} > for {refdes}")
     logger.info(f"cal file at {cal_file_path_str}")
 
     placeholder = xr.open_dataset(cal_file_path).attrs.get("placeholder")
@@ -143,6 +162,24 @@ def find_cal_file(refdes, date_str):
         logger.warning(f"{cal_file_path.name} is a PLACEHOLDER cal: {placeholder}")
 
     return cal_file_path_str  # pbp wants a string not a path
+
+
+def cal_provenance(cal_path):
+    """the applied cal, recorded in the product so a changed deployment lookup is visible later"""
+    p = Path(cal_path)
+    with xr.open_dataset(p) as ds:
+        cal = dict(ds.attrs)
+    attrs = {
+        "calibration_file": p.name,
+        "calibration_deployment": int(p.stem.rsplit("_", 1)[-1]),
+        "calibration_asset_id": cal.get("asset_id"),
+        "calibration_date": cal.get("calibration_date"),
+        "calibration_source_pdf": cal.get("source_pdf"),
+        "calibration_placeholder": cal.get("placeholder"),
+        # the static global attrs say SB35-ETH, which early deployments were not
+        "instrument": f"icListen model {cal['model']}" if cal.get("model") else None,
+    }
+    return {k: v for k, v in attrs.items() if v is not None}
 
 
 def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_lims):
@@ -168,11 +205,13 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_
     hmb_gen.set_voltage_multiplier(VOLTAGE_MULTIPLIER)
     hmb_gen.set_subset_to(freq_lims)
 
+    cal_attrs = {"calibration_file": "none"}
     if apply_cals:
         logger.info("Applying calibration .nc files from the ooi-hyd-tools metadata folder.")
         sensitivity_uri = find_cal_file(hyd_refdes, start_date)
         # hmb_gen.set_sensitivity(-170)
         hmb_gen.set_sensitivity(sensitivity_uri)
+        cal_attrs = cal_provenance(sensitivity_uri)
 
     config = Config(signature_version=botocore.UNSIGNED)
     s3_client = boto3.client("s3", config=config)
@@ -206,6 +245,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_
     lat, lon = HYDBB_COORDS[hyd_refdes]
     ds.attrs["geospatial_bounds"] = f"POINT ({lat} {lon})"
     ds.attrs["platform"] = hyd_refdes
+    ds.attrs.update(cal_attrs)
     ds.to_netcdf(nc_filename, engine="h5netcdf")
 
     plot_dataset_summary(

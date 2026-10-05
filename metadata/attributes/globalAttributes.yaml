@@ -38,7 +38,7 @@ time_coverage_end: AUTOPOPULATE
 time_coverage_duration: P1D
 time_coverage_resolution: PT1M
 platform: OOI UW RCA reference designators including CE02SHBP-LJ01D-11-HYDBBA106 (44.63721, -124.30564),CE04OSBP-LJ01C-11-HYDBBA105 (44.36933, -124.95347), RS01SBPS-PC01A-08-HYDBBA103 (44.51516, -125.3899), RS01SLBS-LJ01A-09-HYDBBA102 (44.51505, -125.39002), RS03AXBS-LJ03A-09-HYDBBA302 (45.81676, -129.75426), RS03AXPS-PC03A-08-HYDBBA303 (45.81671, -129.75405), 
-instrument: icListen model SB35-ETH 
+instrument: icListen  # model (SB2-ETH or SB35-ETH) varies by deployment; added per product from the cal file
 cdm_data_type: TimeSeries
 references: >-
   Computation of single-sided mean-square sound pressure spectral density with 1 Hz resolution

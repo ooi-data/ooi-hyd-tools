@@ -22,7 +22,7 @@ https://github.com/lifewatch/pypam
 | [Converting mseed to flac or wav](#how-to-convert-ooi-mseed-archives-to-flac-or-wav) | the CLI, and how the gap repair, naming and bit depth work |
 | [Running from a local mirror](#running-from-a-local-mirror) | reading mseed from a mounted copy of the archive instead of the raw data server |
 | [Pipeline stages](#pipeline-stages) | what each `--flag` reads and writes |
-| [What gets written](#what-gets-written) | per-file header tags and the per-day manifest |
+| [What gets written](#what-gets-written) | per-file header tags, the per-day manifest, and the cal recorded in each spectrogram |
 | [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
 | [Hydrophone calibrations](#hydrophone-calibrations) | cal specs, where the sheets come from, how one is chosen |
 | [Known issues to fix](#known-issues-to-fix) | current defects, ordered by size of error on delivered products |
@@ -250,6 +250,27 @@ audio so its presence means the day finished:
 `day_coverage_pct` separates a short recording day from a failed upload. `collisions` records
 pieces dropped because two started in the same second (see Known issues); that audio is unique
 and is written nowhere else.
+
+### Spectrogram calibration attributes
+
+Each spectrogram `.nc` records the cal it was built with as global attributes, read from the
+cal file `find_cal_file` selected, so a later change to the deployment lookup or a cal file
+is visible after the fact:
+
+| attribute | holds |
+| --- | --- |
+| `calibration_file` | the cal file applied, e.g. `CE04OSBP-LJ01C-11-HYDBBA105_12.nc`; `none` with `--apply-cals false` |
+| `calibration_deployment` | the deployment that cal belongs to |
+| `calibration_asset_id` | the hydrophone asset |
+| `calibration_date` | date of the vendor cert |
+| `calibration_source_pdf` | the cert PDF the values were transcribed from |
+| `calibration_placeholder` | present only for a stand-in cal, with the reason (see Known issues) |
+
+`instrument` is also set from the cal file's model (`icListen model SB2-ETH` or `SB35-ETH`).
+The models differ by deployment and `globalAttributes.yaml` is shared by every product, so the
+static value is just `icListen`; that is what a product built with `--apply-cals false` keeps.
+Products made before October 2026 do not carry these attributes, and their `instrument` says
+SB35-ETH regardless of deployment.
 
 # How to extract audio of a single event
 

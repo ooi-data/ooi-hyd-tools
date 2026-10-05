@@ -14,6 +14,10 @@ Hybrid millidecade spectrogram products for the same days, if useful as a refere
 s3://ooi-hmb-data/hmb/{YYYY}/{INSTRUMENT}/{INSTRUMENT}_{YYYYMMDD}.nc
 ```
 
+Each `.nc` records the calibration it was built with in `calibration_*` global attributes -
+`calibration_file` names the cal for that day, and `calibration_placeholder` is present only
+when a stand-in cal was used. Products made before October 2026 do not carry them.
+
 
 ```bash
 aws s3 sync s3://ooi-hmb-data/flac/2024/HYDBBA105/2024_11_03/ ./local_dir/
@@ -44,7 +48,8 @@ volts = x * 3                                        # ADC full scale is +/-3 V
 
 Then apply the hydrophone sensitivity in dB re 1 V/uPa to get pressure. Calibration files
 are committed in the repository at `metadata/cals/{refdes}_{deployment}.nc`, one per
-instrument per deployment, holding the manufacturer sheet values.
+instrument per deployment, holding the manufacturer sheet values. The same day's spectrogram
+`.nc` names the right one in its `calibration_file` attribute.
 
 If you read with `dtype="int32"` instead of float, libsndfile left-justifies into the 32-bit
 word and you get `count << 8`. Shift right by 8 to recover counts. The float path above
