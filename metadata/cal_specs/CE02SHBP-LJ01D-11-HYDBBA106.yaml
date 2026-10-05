@@ -181,6 +181,7 @@ deployments:
     sens90: [-170.5, -170.5, -172.5, -172.2, -171.8, -172.7, -171.4, -172.1, -173.1,
       -173.8, -174.1, -173.7, -173.5, -172.0, -171.8, -170.6, -168.9, -168.8, -170.8,
       -173.5, -176.8]
+    placeholder: "true vendor cal missing: ATOSU-58324-00012__20241106.pdf has no calibration data; using the most recent prior cal for this asset"
     source_pdf: ATOSU-58324-00012__20230301.pdf
   '13':
     asset_id: ATOSU-58324-00014

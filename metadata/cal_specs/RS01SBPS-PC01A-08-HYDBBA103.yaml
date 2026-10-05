@@ -15,4 +15,5 @@ deployments:
     sens90: [-171.5, -171.5, -172.6, -172.7, -170.9, -172.4, -170.9, -172.3, -174.0,
       -173.0, -172.0, -172.3, -172.9, -172.8, -171.7, -170.2, -169.7, -169.6, -171.5,
       -173.9, -178.0]
+    placeholder: "true vendor cal missing: ATAPL-58324-00007__20241106.pdf has no calibration data; using the most recent prior cal for this asset"
     source_pdf: ATAPL-58324-00007__20230302.pdf
