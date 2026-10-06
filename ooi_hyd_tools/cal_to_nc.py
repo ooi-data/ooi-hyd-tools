@@ -21,8 +21,7 @@ VOLTAGE_MULTIPLIER.
 
 One spec per instrument holds every deployment, so drift between deployments is visible in one
 diff. The PDF -> YAML transcription stays a human step: a hallucinated sensitivity silently biases
-every spectrogram downstream and nothing at run time would catch it. Replaces
-notebooks/03_PARSE_CAL_TO_NC.ipynb.
+every spectrogram downstream and nothing at run time would catch it.
 
     cal-to-nc template > metadata/cal_specs/RS03AXPS-PC03A-08-HYDBBA303.yaml
     cal-to-nc build metadata/cal_specs/*.yaml --plot
