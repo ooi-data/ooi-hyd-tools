@@ -26,7 +26,6 @@ https://github.com/lifewatch/pypam
 | [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
 | [Hydrophone calibrations](#hydrophone-calibrations) | cal specs, where the sheets come from, how one is chosen |
 | [Known issues to fix](#known-issues-to-fix) | current defects, ordered by size of error on delivered products |
-| [Candidate work upstream](#candidate-the-same-repair-upstream-on-packets) | what applying the repair at ingest would take |
 | [Reference designators](#ooi-reference-designators-refdes-for-broadband-hydrophones-and-approximate-latlon) | refdes and approximate lat/lon |
 
 Longer notes live in [`docs/`](docs/):
@@ -36,6 +35,8 @@ Longer notes live in [`docs/`](docs/):
   calibration offset came from.
 - [**data-access.md**](docs/data-access.md) - S3 layout, how to read the FLAC, timing caveats
   and the per-day manifest. Written for external users; safe to hand out.
+- [**upstream-repair.md**](docs/upstream-repair.md) - what applying the jitter and gap repair at
+  ingest, in the OOI ORB driver that writes the mseed, would take.
 
 # How to convert ooi mseed archives to flac or wav
 `git clone https://github.com/ooi-data/ooi-hyd-tools.git`
@@ -341,47 +342,6 @@ Ordered by size of the error on delivered spectrograms.
 | Degenerate timestamps | `HYDBBA102` 2023-06-15; extent unknown | Every trace in a file shares one timestamp, so naming from the first trace **scatters output and fragments the spectrogram**; the audio itself is correct. Upstream only began per-trace starttimes in Sep-Oct 2023, so earlier data may be affected. Fix (name from the filename when labels span less time than the audio) not implemented; **not surveyed** |
 
 Re-run `cal-to-nc build` after editing a spec. The seafloor instruments (HYDBBA102, 105, 106, 302) have cals from deployment 1; of the mooring-mounted ones, HYDBBA303 from deployment 10 and HYDBBA103 from deployment 12.
-
-# Candidate: the same repair upstream, on packets
-
-Notes of what it would take to apply this at
-ingest.
-
-The mseed is written by the Antelope ORB driver in
-[`oceanobservatories/mi-instrument`](https://github.com/oceanobservatories/mi-instrument),
-`mi/instrument/antelope/orb/ooicore/` - `packet_log.py` and `driver.py`. What it does today:
-
-- **Bins on the 5-min grid.** `_get_bin` computes `int(packet_time / 300) * 300`, and the
-  filename is that bin start - which is why our repair can treat the filename as the anchor.
-- **One obspy `Trace` per packet**, each carrying that packet's own timestamp. Packets are
-  2560 samples (40 ms), hence the ~1200 traces we stitch back together in a single file.
-- **Zero tolerance at the bin edge.** `add_packet` raises `GapException` the moment a
-  packet's timestamp falls outside `[mintime, maxtime)`; the driver then closes the current
-  file wherever it stands and opens a new one.
-- **Nothing counts samples.** No comparison of what arrived against what a 5-min bin holds.
-
-Nothing in our algorithm is specific to mseed. It is one rule - **a sample count is evidence,
-a timestamp is a claim** - plus one measurement - **an overlap is proof of a false claim, so
-it bounds how far the claims can be trusted**. Both survive the move to packets intact.
-
-| in this repo | at the packet level |
-|---|---|
-| 5-min mseed file | a window closed on the grid, held briefly for late packets |
-| traces within the file | packets accumulated into that window |
-| expected = 300 x sr | unchanged - the window defines it |
-| largest overlap in the file | rolling estimate over recent packets, continuously updated |
-| CI filename as the anchor | a sample counter, re-anchored only at a real break |
-| CASE A / B / C at file close | identical, at window close |
-
-The one structural upgrade is the anchor. The ADC does not silently drop or duplicate a
-sample, so within a continuous stretch the true time of sample N is `anchor + N/sr`. Upstream
-that means per-packet timestamps need not be trusted at all: carry a counter and re-anchor
-only when a gap clears both thresholds. We cannot do this downstream, because we see one file
-at a time and must re-derive the anchor from its name.
-
-What is genuinely harder upstream is that there is no lookahead. A window must close before
-you can know whether a late packet is still coming, so the rule needs a lateness bound and an
-out-of-order buffer - neither of which a reader of a finished archive has to care about.
 
 # OOI reference designators (refdes) for broadband hydrophones and approximate lat/lon:
 
