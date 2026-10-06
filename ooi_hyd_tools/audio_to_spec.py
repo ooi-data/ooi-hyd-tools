@@ -176,6 +176,8 @@ def cal_provenance(cal_path):
         "calibration_date": cal.get("calibration_date"),
         "calibration_source_pdf": cal.get("source_pdf"),
         "calibration_placeholder": cal.get("placeholder"),
+        "calibration_lf_sensitivity": cal.get("lf_sensitivity"),
+        "calibration_lf_corner_hz": cal.get("lf_corner_hz"),
         # the static global attrs say SB35-ETH, which early deployments were not
         "instrument": f"icListen model {cal['model']}" if cal.get("model") else None,
     }

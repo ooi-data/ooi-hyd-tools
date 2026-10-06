@@ -32,6 +32,11 @@ notebooks/03_PARSE_CAL_TO_NC.ipynb.
 
 SENS_RANGE = (-220.0, -120.0)  # plausible dB re 1 V/uPa, catches transcription slips
 DRIFT_DB = 6.0  # mean sensitivity jump between deployments worth a second look
+# Below the tabulated band the icListen HF rolls off as a first-order high-pass. 10 Hz is the
+# spec-sheet LF cutoff, interim until ONC HydroCal curves exist for our units: HydroCal puts
+# two icListen HF at roughly 7 and 13 Hz, and anchoring at 26 Hz keeps either within ~1.5 dB
+LF_CORNER_HZ = 10.0
+LF_POINTS_PER_DECADE = 20  # dense enough that pbp's linear interp follows the model
 SPEC_DIR = Path("./metadata/cal_specs")
 META_DIR = Path("./metadata")
 
@@ -49,9 +54,10 @@ deployments:
     source_pdf: null                  # filename of the cal PDF, for provenance
     placeholder: null                 # reason string if this is a stand-in cal
     freq_units: kHz                   # kHz (as printed on most cal sheets) or Hz
-    frequencies: [0.0, 10.0, 20.1]
-    sens0: [-171.2, -171.2, -172.9]
-    sens90: [-171.2, -171.2, -172.6]
+    frequencies: [10.0, 20.1]         # the table as printed; build adds the 0 Hz anchor
+    sens0: [-171.2, -172.9]
+    sens90: [-171.2, -172.6]
+    lf_sens: -170.9                   # "Sensitivity @ 26 Hz", printed beside the table
 """
 
 
@@ -63,13 +69,17 @@ class HydCal(BaseModel):
     sens: Optional[List[float]] = None
     sens0: Optional[List[float]] = None
     sens90: Optional[List[float]] = None
-    # metadata, absent on a few early files
+    # metadata
     asset_id: Optional[constr(min_length=17, max_length=17)] = None
     model: Optional[str] = None
     sn: Optional[int] = None
     cal_date: Optional[datetime] = None
     source_pdf: Optional[str] = None
     placeholder: Optional[str] = None
+    # "Sensitivity @ 26 Hz",  Without it the curve below the first tabulated point is a flat copy of that point
+    lf_sens: Optional[float] = None
+    lf_freq_hz: float = 26.0
+    lf_corner_hz: float = LF_CORNER_HZ
 
     @model_validator(mode="after")
     def check_cal(self):
@@ -94,7 +104,48 @@ class HydCal(BaseModel):
 
         if sorted(self.frequencies) != self.frequencies:
             raise ValueError("frequencies must be ascending - check for a transcription slip")
+        if self.frequencies[0] <= 0:
+            raise ValueError("frequencies start at the first tabulated point; build adds 0 Hz")
+
+        if self.lf_sens is not None:
+            if not SENS_RANGE[0] <= self.lf_sens <= SENS_RANGE[1]:
+                raise ValueError(f"lf_sens {self.lf_sens} outside {SENS_RANGE} dB")
+            if not 0 < self.lf_freq_hz < self.frequencies[0]:
+                raise ValueError("lf_freq_hz must be below the first tabulated point")
+            if not 0 < self.lf_corner_hz < self.lf_freq_hz * 10:
+                raise ValueError(f"lf_corner_hz {self.lf_corner_hz} is implausible")
         return self
+
+    def highpass(self, f):
+        """first-order high-pass roll-off in dB at lf_corner_hz"""
+        x = np.asarray(f, dtype=float) / self.lf_corner_hz
+        return 20 * np.log10(x / np.sqrt(1 + x**2))
+
+    def curves(self):
+        """the frequency grid and curves pbp sees. The spec holds only the printed table; pbp
+        interpolates linearly between points and returns NaN outside them, so this adds the
+        band below the table, down to a 0 Hz anchor.
+
+        Without lf_sens everything below the first tabulated point is a flat copy of it. With
+        lf_sens that band is modelled and sampled log-spaced: a first-order high-pass at
+        lf_corner_hz on a plateau placed so the curve passes through lf_sens at lf_freq_hz,
+        blended in log frequency up to the first tabulated point. lf_sens is one
+        omnidirectional value, so directional cals share it and each blends to its own table"""
+        freqs = list(self.frequencies)
+        curves = {k: list(getattr(self, k)) for k in ("sens", "sens0", "sens90") if getattr(self, k)}
+        if self.lf_sens is None:
+            return [0.0, *freqs], {k: [v[0], *v] for k, v in curves.items()}
+
+        f1 = freqs[0]
+        n = int(np.log10(f1) * LF_POINTS_PER_DECADE)
+        grid = np.unique(np.append(np.logspace(0, np.log10(f1), n, endpoint=False), self.lf_freq_hz))
+        plateau = self.lf_sens - self.highpass(self.lf_freq_hz)
+        t = np.clip(np.log(grid / self.lf_freq_hz) / np.log(f1 / self.lf_freq_hz), 0, 1)
+        for k, v in curves.items():
+            top = v[0] - self.highpass(f1)  # so the curve meets the tabulated point exactly
+            model = plateau + t * (top - plateau) + self.highpass(grid)
+            curves[k] = [float(model[0]), *map(float, model), *v]
+        return [0.0, *map(float, grid), *freqs], curves
 
     def _attrs(self, spec_path):
         attrs = {
@@ -107,24 +158,28 @@ class HydCal(BaseModel):
             "source_spec": str(spec_path),
             "source_pdf": self.source_pdf,
             "placeholder": self.placeholder,
+            "lf_sensitivity": self.lf_sens,
+            "lf_frequency_hz": self.lf_freq_hz if self.lf_sens is not None else None,
+            "lf_corner_hz": self.lf_corner_hz if self.lf_sens is not None else None,
         }
         return {k: v for k, v in attrs.items() if v is not None}
 
     def to_dataset(self, spec_path) -> xr.Dataset:
         """cal values as printed on the PDF, plus the `sensitivity` variable pbp reads
         (the sheet curve directly, or the 0/90 average for directional cals)"""
+        freqs, c = self.curves()
         if self.sens is not None:
-            vars = {"sensitivity": (["frequency"], self.sens)}
+            vars = {"sensitivity": (["frequency"], c["sens"])}
         else:
-            avg = [(a + b) / 2 for a, b in zip(self.sens0, self.sens90)]
+            avg = [(a + b) / 2 for a, b in zip(c["sens0"], c["sens90"])]
             vars = {
-                "sensitivity_0": (["frequency"], self.sens0),
-                "sensitivity_90": (["frequency"], self.sens90),
+                "sensitivity_0": (["frequency"], c["sens0"]),
+                "sensitivity_90": (["frequency"], c["sens90"]),
                 "sensitivity": (["frequency"], avg),
             }
         ds = xr.Dataset(
             data_vars=vars,
-            coords={"frequency": self.frequencies},
+            coords={"frequency": freqs},
             attrs={**self._attrs(spec_path), "sensitivity_units": "dB re 1 V/uPa"},
         )
         if self.sens is None:
@@ -241,6 +296,13 @@ def build(specs, outdir, plot, dry_run):
                 (outdir / "cals").mkdir(parents=True, exist_ok=True)
                 ds.to_netcdf(outdir / "cals" / fname, mode="w")
 
+        no_lf = [d for d, c in spec.deployments.items() if c.lf_sens is None]
+        if no_lf:
+            click.secho(
+                f"  no lf_sens on {len(no_lf)} of {len(spec.deployments)} deployments - flat "
+                "below their first tabulated point",
+                fg="yellow",
+            )
         for a, b, delta in spec.drift():
             click.secho(
                 f"  drift: mean sensitivity changes {delta:+.1f} dB from deployment {a} to {b}",
@@ -296,6 +358,8 @@ def from_nc(refdes, indir, outdir):
     for f in files:
         ds = xr.open_dataset(f)
         dep = f.stem.split("_")[-1]
+        if "lf_sensitivity" in ds.attrs:
+            raise click.ClickException(f"{f.name} has an lf_sens point; edit its spec instead")
         cal = {
             "asset_id": ds.attrs.get("asset_id"),
             "model": ds.attrs.get("model"),
@@ -304,7 +368,7 @@ def from_nc(refdes, indir, outdir):
             "source_pdf": ds.attrs.get("source_pdf"),
             "placeholder": ds.attrs.get("placeholder"),
             "freq_units": "Hz",
-            "frequencies": [float(v) for v in ds.frequency.values],
+            "frequencies": [float(v) for v in ds.frequency.values[1:]],  # drop the 0 Hz anchor
         }
         if "calibration_date" in ds.attrs:
             cal["cal_date"] = datetime.strptime(
@@ -313,10 +377,10 @@ def from_nc(refdes, indir, outdir):
         # `sensitivity` on directional files is the derived 0/90 average `build` recreates,
         # so it stays out of the spec
         if {"sensitivity_0", "sensitivity_90"} <= set(ds.data_vars):
-            cal["sens0"] = [float(v) for v in ds.sensitivity_0.values]
-            cal["sens90"] = [float(v) for v in ds.sensitivity_90.values]
+            cal["sens0"] = [float(v) for v in ds.sensitivity_0.values[1:]]
+            cal["sens90"] = [float(v) for v in ds.sensitivity_90.values[1:]]
         else:
-            cal["sens"] = [float(v) for v in ds.sensitivity.values]
+            cal["sens"] = [float(v) for v in ds.sensitivity.values[1:]]
         deployments[dep] = {k: v for k, v in cal.items() if v is not None}
 
     outdir.mkdir(parents=True, exist_ok=True)
