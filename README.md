@@ -85,8 +85,7 @@ same files.
 - A day with no mseed is skipped, as on the remote archive. A missing `ROOT/<refdes>` raises
   instead, since an unmounted share would otherwise look like a run of empty days.
 - Only the broadband `audio` and `all` stages read the mirror. `--mseed-root` is refused with
-  `--runner prefect` (the cloud workers cannot see a local mount) and with `low_freq`, `obs`
-  or `spectrogram`, which do not read this archive.
+  `--runner prefect` and with `low_freq`, `obs` or `spectrogram`, which do not read this archive.
 
 ### Pipeline stages
 
