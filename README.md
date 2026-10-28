@@ -95,8 +95,20 @@ same files.
 copied in alongside its mseed:
 
 ```
-./data/flac/CE02SHBP/LJ01D/HYDBBA106/2026/10/20/OO-HYEA2--YDH-2026-10-20T00:40:00.014000Z.flac
+acoustic-pipeline \
+--hyd-refdes "CE02SHBP-LJ01D-11-HYDBBA106" \
+--start-date "2024/11/03" \
+--mseed-root ~/ooi/san_data \
+--flac-layout ooi \
+--flag audio \
+--runner local
 ```
+
+```
+./data/flac/CE02SHBP/LJ01D/HYDBBA106/2024/11/03/OO-HYEA2--YDH-<start>.flac
+```
+
+`--mseed-root` is optional; without it the mseed comes from the raw data server as usual.
 
 Names carry the true start to the microsecond, so they may differ slightly from the source
 mseed's. The day's manifest is written alongside them.
