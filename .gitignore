@@ -13,3 +13,6 @@ downloads/
 
 # cal pdfs 
 metadata/.pdf_cache
+
+# per-day run logs
+logs/

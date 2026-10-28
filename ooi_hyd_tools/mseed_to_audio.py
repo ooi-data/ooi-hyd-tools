@@ -7,7 +7,6 @@ import multiprocessing as mp
 import requests
 import soundfile as sf
 import time
-import matplotlib.pyplot as plt
 
 from contextvars import copy_context
 
@@ -20,7 +19,7 @@ from importlib.metadata import distributions, version
 from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.low_freq import run_low_freq_oneday
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
-from ooi_hyd_tools.utils import select_logger
+from ooi_hyd_tools.utils import log_to_file, select_logger
 from ooi_hyd_tools.thresholds import COUNT_THRESHOLD
 from ooi_hyd_tools.seismometer import run_obs_viz
 
@@ -42,6 +41,11 @@ depends on, and libsndfile would truncate them; see INT24_SHIFT.
 
 Filenames carry whole seconds only, because that is all mbari-pbp can parse. The exact
 start, including sub-second, goes in the file header - see _write_audio.
+
+flac_layout="ooi" instead mirrors the raw data server, for copying FLAC alongside the
+mseed: ./data/flac/SITE/NODE/INSTRUMENT/YYYY/MM/DD/ with the server's file naming, e.g.
+OO-HYEA2--YDH-2026-10-20T00:40:00.014000Z.flac. pbp can't read those names, so that
+layout is for the audio stage only.
 
 """
 
@@ -93,8 +97,7 @@ def _write_audio(path, data, sr, subtype, refdes, start, npts):
     Filenames only carry whole seconds, because that is the finest resolution mbari-pbp
     can parse (meta_gen/utils.py matches {prefix}_YYYYMMDD_HHMMSS. and nothing after).
     A recording that resumes mid-second therefore loses up to 1 s in its name, so the
-    true start goes in the header where nothing truncates it - Vorbis comment for FLAC,
-    LIST/INFO chunk for WAV.
+    true start goes in the FLAC's Vorbis comment, where nothing truncates it.
     """
     with sf.SoundFile(
         str(path),
@@ -402,10 +405,8 @@ def convert_mseed_to_audio(
     hyd_refdes,
     date,
     gap_threshold,
-    format,
-    normalize_traces,
-    write_wav,
     mseed_root=None,
+    flac_layout="pbp",
 ):
     logger = select_logger()
     hyd = HydrophoneDay(hyd_refdes, date, gap_threshold, mseed_root=mseed_root)
@@ -413,21 +414,19 @@ def convert_mseed_to_audio(
     hyd.read_and_repair_gaps()
 
     if hyd.clean_list is None:  # retun None if no data available on that day
-        return None, None, None
+        return None
     else:
         # make dirs
         logger.info("Creating data directories")
         date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
         flac_dir = Path.cwd() / f"data/flac/{date_str}/{hyd.refdes[18:]}"
-        png_dir = Path.cwd() / f"data/png/{date_str}/{hyd.refdes[18:]}"
-        wav_dir = Path.cwd() / f"data/wav/{date_str}/{hyd.refdes[18:]}"
-
+        if flac_layout == "ooi":
+            r = hyd.refdes
+            flac_dir = Path.cwd() / f"data/flac/{r[0:8]}/{r[9:14]}/{r[18:27]}/{date}"
         flac_dir.mkdir(parents=True, exist_ok=True)
-        png_dir.mkdir(parents=True, exist_ok=True)
-        wav_dir.mkdir(parents=True, exist_ok=True)
 
         written = 0
-        seen = {}  # stamp -> (npts, start, sr), to catch two pieces landing in one second
+        seen = {}  # stamp -> (npts, start, sr, name), to catch two pieces landing in one second
         collisions = []  # kept for the manifest; otherwise this evidence only ever gets logged
         for st in hyd.clean_list:
             if st is None:
@@ -437,12 +436,18 @@ def convert_mseed_to_audio(
                 start = tr.stats["starttime"]
                 npts = tr.stats["npts"]
                 stamp = start.strftime("%Y%m%d_%H%M%S")  # whole seconds: pbp parses no finer
+                name = f"{hyd_refdes[-9:]}_{stamp}"
+                if flac_layout == "ooi":
+                    # the server's naming, to the microsecond, so pieces never share a name
+                    s = tr.stats
+                    stamp = start.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                    name = f"{s.network}-{s.station}-{s.location}-{s.channel}-{stamp}"
 
                 # CI occasionally chops one 5-min window into pieces starting ~100 ms
                 # apart, which round to the same filename. Keep the longer piece and say
                 # so, rather than silently overwriting.
                 if stamp in seen:
-                    prev_npts, prev_start, _ = seen[stamp]
+                    prev_npts, prev_start, _, _ = seen[stamp]
                     keep = npts > prev_npts
                     collisions.append(
                         {
@@ -453,7 +458,7 @@ def convert_mseed_to_audio(
                         }
                     )
                     logger.warning(
-                        f"ISSUE {hyd_refdes[-9:]}_{stamp}: two pieces start in the same "
+                        f"ISSUE {name}: two pieces start in the same "
                         f"second ({prev_start} and {start}); keeping the longer "
                         f"({max(npts, prev_npts) / sr:.2f}s over "
                         f"{min(npts, prev_npts) / sr:.2f}s)"
@@ -461,26 +466,15 @@ def convert_mseed_to_audio(
                     if not keep:
                         continue
                     written -= prev_npts / sr  # the file being replaced
-                seen[stamp] = (npts, start, sr)
+                seen[stamp] = (npts, start, sr, name)
 
-                flac_path = flac_dir / f"{hyd_refdes[-9:]}_{stamp}.flac"
-                wav_path = wav_dir / f"{hyd_refdes[-9:]}_{stamp}.wav"
-
+                flac_path = flac_dir / f"{name}.flac"
                 logger.debug(str(flac_path))
                 # counts are left-shifted so PCM_24 stores them intact, see INT24_SHIFT
                 _write_audio(
                     flac_path, tr.data << INT24_SHIFT, sr, "PCM_24", hyd_refdes, start, npts
                 )
                 written += npts / sr
-
-                if write_wav:
-                    logger.debug(str(wav_path))
-                    data = tr.data
-                    if normalize_traces:  # listening copy only
-                        data = data / np.abs(data).max()
-                        _write_audio(wav_path, data, sr, "FLOAT", hyd_refdes, start, npts)
-                    else:
-                        _write_audio(wav_path, data, sr, format, hyd_refdes, start, npts)
 
         # A day is ~288 objects in S3 and is often partial, so a consumer has no way to
         # tell a recording gap from a failed upload. The manifest carries that, the exact
@@ -498,8 +492,8 @@ def convert_mseed_to_audio(
             "day_coverage_pct": round(100 * written / 86400, 2),
             "collisions": collisions,
             "files": [  # sorted: seen is filled by a thread pool, so its order varies
-                {"name": f"{hyd_refdes[-9:]}_{stamp}.flac", "start": str(start), "npts": npts}
-                for stamp, (npts, start, _) in sorted(seen.items())
+                {"name": f"{name}.flac", "start": str(start), "npts": npts}
+                for _, (npts, start, _, name) in sorted(seen.items())
             ],
         }
         manifest_name = f"{hyd_refdes[-9:]}_{hyd.date.strftime('%Y%m%d')}_manifest.json"
@@ -510,49 +504,7 @@ def convert_mseed_to_audio(
             f"{hyd_refdes[-9:]} {date}: wrote {written / 3600:.2f}h of audio from "
             f"{len(hyd.mseed_urls)} mseed files ({100 * written / 86400:.1f}% of the day)"
         )
-        return hyd, png_dir, date_str
-
-
-@task  # TODO remove this once FLAC are being distributed or sooner
-def compare_flac_wav(hyd_refdes, hyd, png_dir, date_str):
-    logger = select_logger()
-
-    logger.info("Some flac/wav comparisions:")
-    starts = [tr.stats.starttime for cs in hyd.clean_list if cs is not None for tr in cs]
-    if not starts:
-        logger.warning("nothing was written, skipping the flac/wav comparison")
-        return
-    example_time = starts[0].strftime("%Y%m%d_%H%M%S")
-    logger.info(f"Using {example_time} for logging and sanity checking")
-
-    wav, _ = sf.read(
-        f"data/wav/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.wav",
-        dtype="int32",
-    )
-    logger.info(f"wav data sanity check {wav}")
-
-    flac, _ = sf.read(
-        f"data/flac/{date_str}/{hyd_refdes[18:]}/{hyd_refdes[18:]}_{example_time}.flac",
-        dtype="int32",
-    )
-    flac = flac >> INT24_SHIFT  # undo the left-justification to recover raw counts
-    logger.info(f"flac data sanity check {flac}")
-
-    diff = wav - flac
-    logger.info(f"wav - flac max abs difference: {np.abs(diff).max()} counts (expect 0)")
-
-    logger.info("saving some comparison plots")
-    plt.plot(wav[:200], linewidth=0.5)
-    plt.plot(flac[:200], linewidth=0.5)
-
-    compare_path = png_dir / f"{hyd.file_str}_flacwav_compare.png"
-    plt.savefig(compare_path, dpi=300, bbox_inches="tight")
-    plt.close()
-
-    plt.plot(diff[:200])
-    diff_path = png_dir / f"{hyd.file_str}_flacwav_diff.png"
-    plt.savefig(diff_path, dpi=300, bbox_inches="tight")
-    plt.close()
+        return hyd
 
 
 def find_flac_day(hyd_refdes, date):
@@ -575,65 +527,62 @@ def find_flac_day(hyd_refdes, date):
 def acoustic_flow_oneday(
     hyd_refdes,
     date,
-    format,
-    normalize_traces,
     gap_threshold,
-    write_wav,
     apply_cals,
     freq_lims,
     s3_sync,
     flag,
     obs_run_type,
     mseed_root=None,
+    flac_layout="pbp",
 ):
-    logger = select_logger()
-    # log python package versions on cloud machine
-    installed_packages = {dist.metadata["Name"]: dist.version for dist in distributions()}
-    logger.info(f"Installed packages: {installed_packages}")
+    # kept after the run, unlike Prefect's; appended, so reruns of a day stack up
+    log_path = Path.cwd() / f"logs/{hyd_refdes[-9:]}/{hyd_refdes[-9:]}_{date.replace('/', '')}.log"
+    with log_to_file(log_path):
+        logger = select_logger()
+        logger.info(f"run: flag={flag} mseed_root={mseed_root} flac_layout={flac_layout} s3_sync={s3_sync}")
+        # log python package versions on cloud machine
+        installed_packages = {dist.metadata["Name"]: dist.version for dist in distributions()}
+        logger.info(f"Installed packages: {installed_packages}")
 
-    if flag == "audio" or flag == "all":
-        hyd, png_dir, date_str = convert_mseed_to_audio(
-            hyd_refdes=hyd_refdes,
-            date=date,
-            format=format,
-            normalize_traces=normalize_traces,
-            gap_threshold=gap_threshold,
-            write_wav=write_wav,
-            mseed_root=mseed_root,
-        )
-        if hyd is None:
-            logger.warning(f"No data availale for {date}. Moving to next day.")
-            return
-
-        # first element of list is different each time due to multithreading - could add sort step?
-        logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
-
-        if write_wav and not normalize_traces:
-            compare_flac_wav(hyd_refdes, hyd, png_dir, date_str)
-
-    if flag == "spectrogram" or flag == "all":
-        m = find_flac_day(hyd_refdes, date)
-        if m is None:
-            raise FileNotFoundError(
-                f"no flac for {hyd_refdes} {date} - run --flag audio first"
+        if flag == "audio" or flag == "all":
+            hyd = convert_mseed_to_audio(
+                hyd_refdes=hyd_refdes,
+                date=date,
+                gap_threshold=gap_threshold,
+                mseed_root=mseed_root,
+                flac_layout=flac_layout,
             )
-        if m["on_disk"] != m["files_written"]:
-            # leftovers from an earlier run of this day; pbp indexes whatever is there
-            logger.warning(f"{m['on_disk']} flac on disk, manifest says {m['files_written']}")
-        logger.info(
-            f"spectrogram from {m['files_written']} flac, {m['day_coverage_pct']}% of the "
-            f"day, written by {m['written_by']}"
-        )
-        audio_to_spec(date, "flac", hyd_refdes, apply_cals, freq_lims)
+            if hyd is None:
+                logger.warning(f"No data availale for {date}. Moving to next day.")
+                return
 
-    if flag == "low_freq":
-        run_low_freq_oneday(hyd_refdes, date, logger)
+            # first element of list is different each time due to multithreading - could add sort step?
+            logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
 
-    if flag == "obs":
-        run_obs_viz(hyd_refdes, date, obs_run_type)
+        if flag == "spectrogram" or flag == "all":
+            m = find_flac_day(hyd_refdes, date)
+            if m is None:
+                raise FileNotFoundError(
+                    f"no flac for {hyd_refdes} {date} - run --flag audio first"
+                )
+            if m["on_disk"] != m["files_written"]:
+                # leftovers from an earlier run of this day; pbp indexes whatever is there
+                logger.warning(f"{m['on_disk']} flac on disk, manifest says {m['files_written']}")
+            logger.info(
+                f"spectrogram from {m['files_written']} flac, {m['day_coverage_pct']}% of the "
+                f"day, written by {m['written_by']}"
+            )
+            audio_to_spec(date, "flac", hyd_refdes, apply_cals, freq_lims)
 
-    if s3_sync:  # "spectrogram" (.nc + .png) or "all" (those plus flac)
-        sync_png_nc_to_s3(hyd_refdes, date, flag, scope=s3_sync)
+        if flag == "low_freq":
+            run_low_freq_oneday(hyd_refdes, date, logger)
+
+        if flag == "obs":
+            run_obs_viz(hyd_refdes, date, obs_run_type)
+
+        if s3_sync:  # "spectrogram" (.nc + .png) or "all" (those plus flac)
+            sync_png_nc_to_s3(hyd_refdes, date, flag, scope=s3_sync)
 
 
 if __name__ == "__main__":

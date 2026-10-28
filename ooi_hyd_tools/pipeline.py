@@ -33,10 +33,7 @@ def iter_dates(start: datetime, end: datetime | None):
 def build_params(
     date: datetime,
     hyd_refdes,
-    format,
-    normalize_traces,
     gap_threshold,
-    write_wav,
     apply_cals,
     freq_lims,
     s3_sync,
@@ -46,10 +43,7 @@ def build_params(
     return {
         "hyd_refdes": hyd_refdes,
         "date": date.strftime("%Y/%m/%d"),
-        "format": format,
-        "normalize_traces": normalize_traces,
         "gap_threshold": gap_threshold,
-        "write_wav": write_wav,
         "apply_cals": apply_cals,
         "freq_lims": freq_lims,
         "s3_sync": s3_sync,
@@ -64,15 +58,16 @@ class Runner(ABC):
 
 
 class LocalRunner(Runner):
-    def __init__(self, mseed_root=None):
+    def __init__(self, mseed_root=None, flac_layout="pbp"):
         self.mseed_root = mseed_root
+        self.flac_layout = flac_layout
 
     def run(self, date: datetime, params: dict) -> None:
         # imported here so --runner prefect dispatch needs only prefect, not the science stack
         from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
 
-        # mseed_root stays out of params: those go to the cloud deployments, which can't see it
-        acoustic_flow_oneday(**params, mseed_root=self.mseed_root)
+        # local-only options stay out of params: those go to the cloud deployments
+        acoustic_flow_oneday(**params, mseed_root=self.mseed_root, flac_layout=self.flac_layout)
 
 
 class PrefectRunner(Runner):
@@ -107,34 +102,12 @@ class PrefectRunner(Runner):
     help="Hydrophone reference designator (e.g., 'CE04OSBP-LJ01C-11-HYDBBA105').",
 )
 @click.option(
-    "--format",
-    type=click.Choice(["FLOAT", "PCM_32"], case_sensitive=False),
-    default="PCM_32",
-    show_default=True,
-    help="Subtype for the optional WAV copies (--write-wav). FLAC output is always "
-    "PCM_24 with counts left-justified into the 24-bit word.",
-)
-@click.option(
-    "--normalize-traces",
-    type=bool,
-    default=False,
-    show_default=True,
-    help="Normalize the optional WAV copies for listening. FLAC is never normalized.",
-)
-@click.option(
     "--gap-threshold",
     type=float,
     default=GAP_THRESHOLD,
     show_default=True,
     help="How long a gap in the mseed data must be (seconds) before it counts as genuinely"
     " lost recording rather than a mislabelled timestamp.",
-)
-@click.option(
-    "--write-wav",
-    type=bool,
-    default=False,
-    show_default=True,
-    help="Set to True to write wav files in addition to flac.",
 )
 @click.option(
     "--apply-cals",
@@ -188,6 +161,15 @@ class PrefectRunner(Runner):
     " and --flag audio or all.",
 )
 @click.option(
+    "--flac-layout",
+    type=click.Choice(["pbp", "ooi"], case_sensitive=False),
+    default="pbp",
+    show_default=True,
+    help="'ooi' writes FLAC in the raw data server's tree and naming,"
+    " ./data/flac/SITE/NODE/INSTRUMENT/YYYY/MM/DD/OO-HYEA2--YDH-<start>.flac, for copying"
+    " alongside the mseed. pbp can't read those names: only with --flag audio and --runner local.",
+)
+@click.option(
     "--runner",
     type=click.Choice(["local", "prefect"], case_sensitive=False),
     default="local",
@@ -199,22 +181,25 @@ def run_acoustic_pipeline(
     start_date,
     end_date,
     hyd_refdes,
-    format,
-    normalize_traces,
     gap_threshold,
-    write_wav,
     apply_cals,
     freq_lims,
     s3_sync,
     flag,
     obs_run_type,
     mseed_root,
+    flac_layout,
     runner,
 ):
     if mseed_root and runner != "local":
         raise click.UsageError("--mseed-root needs --runner local; ECS can't see a local mount")
     if mseed_root and flag not in ("audio", "all"):
         raise click.UsageError("--mseed-root only feeds the broadband mseed -> flac stage")
+    if flac_layout == "ooi" and (flag != "audio" or runner != "local" or s3_sync == "all"):
+        raise click.UsageError(
+            "--flac-layout ooi needs --flag audio and --runner local, without --s3-sync all:"
+            " those read pbp-named flac"
+        )
 
     config_dict = OBS_CONFIG_DICT if flag == "obs" else HYD_CONFIG_DICT
     deployment_name = (
@@ -224,7 +209,7 @@ def run_acoustic_pipeline(
     )
 
     runners = {
-        "local": LocalRunner(mseed_root),
+        "local": LocalRunner(mseed_root, flac_layout),
         "prefect": PrefectRunner(deployment_name),
     }
     _runner = runners[runner]
@@ -236,10 +221,7 @@ def run_acoustic_pipeline(
         params = build_params(
             date=date,
             hyd_refdes=hyd_refdes,
-            format=format,
-            normalize_traces=normalize_traces,
             gap_threshold=gap_threshold,
-            write_wav=write_wav,
             apply_cals=apply_cals,
             freq_lims=freq_lims,
             s3_sync=s3_sync,

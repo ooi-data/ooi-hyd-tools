@@ -19,8 +19,10 @@ https://github.com/lifewatch/pypam
 
 | section | what it covers |
 | --- | --- |
-| [Converting mseed to flac or wav](#how-to-convert-ooi-mseed-archives-to-flac-or-wav) | the CLI, and how the gap repair, naming and bit depth work |
+| [Converting mseed to flac](#how-to-convert-ooi-mseed-archives-to-flac) | the CLI, and how the gap repair, naming and bit depth work |
 | [Running from a local mirror](#running-from-a-local-mirror) | reading mseed from a mounted copy of the archive instead of the raw data server |
+| [FLAC in the raw data server layout](#flac-in-the-raw-data-server-layout) | writing FLAC in the archive's tree and naming |
+| [Run logs](#run-logs) | the per-day log files kept after each run |
 | [Pipeline stages](#pipeline-stages) | what each `--flag` reads and writes |
 | [What gets written](#what-gets-written) | per-file header tags, the per-day manifest, and the cal recorded in each spectrogram |
 | [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
@@ -38,7 +40,7 @@ Longer notes live in [`docs/`](docs/):
 - [**upstream-repair.md**](docs/upstream-repair.md) - what applying the jitter and gap repair at
   ingest, in the OOI ORB driver that writes the mseed, would take.
 
-# How to convert ooi mseed archives to flac or wav
+# How to convert ooi mseed archives to flac
 `git clone https://github.com/ooi-data/ooi-hyd-tools.git`
 
 `conda create -n ooi-hyd-tools python=3.11 pip`
@@ -86,6 +88,26 @@ same files.
   instead, since an unmounted share would otherwise look like a run of empty days.
 - Only the broadband `audio` and `all` stages read the mirror. `--mseed-root` is refused with
   `--runner prefect` and with `low_freq`, `obs` or `spectrogram`, which do not read this archive.
+
+### FLAC in the raw data server layout
+
+`--flac-layout ooi` writes FLAC in the raw data server's tree and naming, so a day can be
+copied in alongside its mseed:
+
+```
+./data/flac/CE02SHBP/LJ01D/HYDBBA106/2026/10/20/OO-HYEA2--YDH-2026-10-20T00:40:00.014000Z.flac
+```
+
+Names carry the true start to the microsecond, so they may differ slightly from the source
+mseed's. The day's manifest is written alongside them.
+pbp can't parse these names, so this layout needs `--flag audio` and `--runner local`, and is
+refused with `--s3-sync all`.
+
+### Run logs
+
+Each run also appends its log to `./logs/INSTRUMENT/INSTRUMENT_YYYYMMDD.log`, including the
+traceback if it fails, so reruns of a day stack up in one file. `grep -r "WARNING\|ERROR\|ISSUE" logs/`
+lists the days worth a look.
 
 ### Pipeline stages
 
@@ -183,8 +205,8 @@ Files are named `{instrument}_{YYYYMMDD}_{HHMMSS}` at whole-second resolution, b
 is the finest mbari-pbp can parse - `meta_gen/utils.py` matches `{prefix}_YYYYMMDD_HHMMSS.`
 and nothing after, so any sub-second suffix makes the file invisible to the spectrogram
 stage. A recording that resumes mid-second therefore loses up to 1 s in its name; the exact
-start is written into the file header instead (`date` and `comment`, readable in both FLAC
-and WAV), where nothing truncates it.
+start is written into the file header instead (`date` and `comment`), where nothing
+truncates it.
 
 ### FLAC bit depth
 
@@ -197,14 +219,13 @@ Full walkthrough, with the numbers and where the +128.9 dB offset came from: [do
 ## What gets written
 ### Audio file metadata
 
-Three fields are set at write time (`_write_audio`), and soundfile maps each onto whichever
-tagging scheme the container supports:
+Three fields are set at write time (`_write_audio`) as FLAC Vorbis comments:
 
-| Written as | FLAC (Vorbis comment) | WAV (RIFF `LIST`/`INFO`) | Holds |
-| --- | --- | --- | --- |
-| `date` | `DATE=` | `ICRD` | exact start, sub-second, ISO 8601 |
-| `software` | `SOFTWARE=` | `ISFT` | `ooi-hyd-tools` + package version; libsndfile appends its own |
-| `comment` | `COMMENT=` | `ICMT` | `refdes=` `start=` `npts=` `sampling_rate=` `counts=` |
+| Written as | Vorbis comment | Holds |
+| --- | --- | --- |
+| `date` | `DATE=` | exact start, sub-second, ISO 8601 |
+| `software` | `SOFTWARE=` | `ooi-hyd-tools` + package version; libsndfile appends its own |
+| `comment` | `COMMENT=` | `refdes=` `start=` `npts=` `sampling_rate=` `counts=` |
 
 As it appears in a real file:
 
@@ -218,8 +239,7 @@ Reading it back:
 
 ```bash
 python -c "import soundfile as sf; f=sf.SoundFile('x.flac'); print(f.date); print(f.comment)"
-metaflac --list --block-type=VORBIS_COMMENT x.flac   # flac only
-ffprobe -hide_banner x.wav                           # either container
+metaflac --list --block-type=VORBIS_COMMENT x.flac
 ```
 
 ### Per-day manifest
