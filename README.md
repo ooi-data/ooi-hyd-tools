@@ -20,8 +20,7 @@ https://github.com/lifewatch/pypam
 | section | what it covers |
 | --- | --- |
 | [Converting mseed to flac](#how-to-convert-ooi-mseed-archives-to-flac) | the CLI, and how the gap repair, naming and bit depth work |
-| [Running from a local mirror](#running-from-a-local-mirror) | reading mseed from a mounted copy of the archive instead of the raw data server |
-| [FLAC in the raw data server layout](#flac-in-the-raw-data-server-layout) | writing FLAC in the archive's tree and naming |
+| [Local mirror and raw data server layout](#running-from-a-local-mirror-with-flac-in-the-raw-data-server-layout) | reading mseed from a mounted archive, writing FLAC in its tree and naming |
 | [Run logs](#run-logs) | the per-day log files kept after each run |
 | [Pipeline stages](#pipeline-stages) | what each `--flag` reads and writes |
 | [What gets written](#what-gets-written) | per-file header tags, the per-day manifest, and the cal recorded in each spectrogram |
@@ -65,17 +64,20 @@ acoustic-pipeline \
 
 Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
 
-### Running from a local mirror
+### Running from a local mirror, with FLAC in the raw data server layout
 
 On a machine with the raw archive mounted, `--mseed-root` reads the broadband mseed from disk
-instead of the OOI raw data server:
+instead of the OOI raw data server, and `--flac-layout ooi` writes FLAC in the server's tree
+and naming, so a day can be copied in alongside its mseed. Either works without the other.
 
 ```
 acoustic-pipeline \
 --hyd-refdes "CE02SHBP-LJ01D-11-HYDBBA106" \
 --start-date "2024/11/03" \
 --mseed-root ~/ooi/san_data \
---runner local
+--flac-layout ooi \
+--flag audio
+# -> ./data/flac/CE02SHBP/LJ01D/HYDBBA106/2024/11/03/OO-HYEA2--YDH-<start>.flac
 ```
 
 The mirror must be laid out as `ROOT/<refdes>/YYYY/MM/DD/`, with an optional `addendum/` in
@@ -86,34 +88,11 @@ same files.
 
 - A day with no mseed is skipped, as on the remote archive. A missing `ROOT/<refdes>` raises
   instead, since an unmounted share would otherwise look like a run of empty days.
-- Only the broadband `audio` and `all` stages read the mirror. `--mseed-root` is refused with
-  `--runner prefect` and with `low_freq`, `obs` or `spectrogram`, which do not read this archive.
-
-### FLAC in the raw data server layout
-
-`--flac-layout ooi` writes FLAC in the raw data server's tree and naming, so a day can be
-copied in alongside its mseed:
-
-```
-acoustic-pipeline \
---hyd-refdes "CE02SHBP-LJ01D-11-HYDBBA106" \
---start-date "2024/11/03" \
---mseed-root ~/ooi/san_data \
---flac-layout ooi \
---flag audio \
---runner local
-```
-
-```
-./data/flac/CE02SHBP/LJ01D/HYDBBA106/2024/11/03/OO-HYEA2--YDH-<start>.flac
-```
-
-`--mseed-root` is optional; without it the mseed comes from the raw data server as usual.
-
-Names carry the true start to the microsecond, so they may differ slightly from the source
-mseed's. The day's manifest is written alongside them.
-pbp can't parse these names, so this layout needs `--flag audio` and `--runner local`, and is
-refused with `--s3-sync all`.
+- `--mseed-root` only feeds the broadband `audio` and `all` stages, and is refused with
+  `--runner prefect`, which can't see a local mount.
+- `--flac-layout ooi` names carry the true start to the microsecond, so they may differ slightly
+  from the source mseed's; the day's manifest is written alongside. pbp can't parse these
+  names, so it needs `--flag audio` and the local runner, and is refused with `--s3-sync all`.
 
 ### Run logs
 
