@@ -1,0 +1,19 @@
+# One container per hydrophone; gains bring each to ~-25 dBFS RMS (see stream.py).
+# Node names are placeholders until Orcasound assigns them.
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (from Orcasound) go in stream/.env.
+x-stream: &stream
+  build: {context: .., dockerfile: stream/Dockerfile}
+  env_file: .env
+  restart: unless-stopped
+  volumes: [./out:/app/data/stream]
+
+services:
+  oregon-shelf:
+    <<: *stream
+    command: --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --node-name ooi_oregon_shelf --gain-db 25 --bucket s3://audio-orcasound-net
+  oregon-offshore:
+    <<: *stream
+    command: --hyd-refdes CE04OSBP-LJ01C-11-HYDBBA105 --node-name ooi_oregon_offshore --gain-db 45 --bucket s3://audio-orcasound-net
+  axial-base:
+    <<: *stream
+    command: --hyd-refdes RS03AXBS-LJ03A-09-HYDBBA302 --node-name ooi_axial_base --gain-db 50 --bucket s3://audio-orcasound-net

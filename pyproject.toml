@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ooi-hyd-tools"
-version = "1.8.0"
+version = "1.8.1"
 authors = [{ name="Joe Duprey", email="jduprey@uw.edu" }]
 readme = "README.md"
 description = "Tools and scripts for working with OOI hydrophone data"
@@ -47,6 +47,8 @@ dependencies = [
 acoustic-pipeline = "ooi_hyd_tools.pipeline:run_acoustic_pipeline"
 event-audio = "ooi_hyd_tools.events:extract_event"
 cal-to-nc = "ooi_hyd_tools.cal_to_nc:cli"
+ooi-stream = "ooi_hyd_tools.stream:stream"
+ooi-listen = "ooi_hyd_tools.stream:listen"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ooi_hyd_tools"]

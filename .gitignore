@@ -16,3 +16,7 @@ metadata/.pdf_cache
 
 # per-day run logs
 logs/
+
+# live stream secrets and local output
+stream/.env
+stream/out/

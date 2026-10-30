@@ -25,6 +25,7 @@ https://github.com/lifewatch/pypam
 | [Pipeline stages](#pipeline-stages) | what each `--flag` reads and writes |
 | [What gets written](#what-gets-written) | per-file header tags, the per-day manifest, and the cal recorded in each spectrogram |
 | [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
+| [Live stream](#live-stream-to-orcasound) | delayed HLS of the broadband hydrophones for live.orcasound.net |
 | [Hydrophone calibrations](#hydrophone-calibrations) | cal specs, where the sheets come from, how one is chosen |
 | [Known issues to fix](#known-issues-to-fix) | current defects, ordered by size of error on delivered products |
 | [Reference designators](#ooi-reference-designators-refdes-for-broadband-hydrophones-and-approximate-latlon) | refdes and approximate lat/lon |
@@ -303,6 +304,30 @@ event-audio \
 ```
 
 `--speed` rewrites the sample rate `--bandpass LOW HIGH` isolates event of interest, `--normalize` boosts a quiet clip, and `--fade SEC` tapers both ends. `event-audio --help` for all arguments.
+
+# Live stream to Orcasound
+
+`ooi-stream` plays a broadband hydrophone as [Orcasound](https://github.com/orcasound/orcanode)-style
+HLS (10 s AAC segments under `<node_name>/hls/<epoch>/`, plus `latest.txt`), a fixed delay
+behind real time so the mseed has reached the raw data server:
+
+```
+ooi-stream --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --node-name ooi_oregon_shelf --gain-db 25
+```
+
+- Each 5-min file is repaired as in the pipeline (`repair.py`) and laid on a silent buffer, so
+  gaps stay gaps. A file not on the server when its turn comes (`--delay-minutes`, default 6 h)
+  streams as silence; late addendum data can't be added back into a live stream.
+- The epoch is the data time of the first slot, not wall time, so an archive built from it
+  dates the audio correctly.
+- Levels are counts with a fixed `--gain-db` and a soft limiter, for listening, not
+  calibrated pressure. Instruments differ by ~25 dB, so set the gain per hydrophone.
+- `--bucket s3://audio-orcasound-net` uploads as orcanode does, with Orcasound's AWS keys.
+  Without it, output stays in `./data/stream`; play it with `ffplay <dir>/live.m3u8`.
+- `--start YYYY-MM-DDTHH:MM --mseed-root DIR` replays past data at real-time pace, for testing.
+
+`stream/` holds a slim image (no pbp or prefect) and a compose file running all three
+hydrophones: `docker compose -f stream/docker-compose.yml up -d`, with the keys in `stream/.env`.
 
 # Hydrophone calibrations
 

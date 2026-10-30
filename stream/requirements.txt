@@ -1,0 +1,10 @@
+# Minimal env for `python -m ooi_hyd_tools.stream`: fetch, repair, encode. No pbp or prefect.
+obspy==1.5.0 # matches pyproject
+numpy<2
+fsspec>2024.10.0
+aiohttp # fsspec http
+s3fs>2024.6.0
+requests
+tqdm>=4.67.1
+click>=7
+loguru

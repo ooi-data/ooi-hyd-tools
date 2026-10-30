@@ -4,9 +4,9 @@ from contextlib import contextmanager
 
 
 def select_logger():
-    from prefect import get_run_logger
+    try:  # the prefect import is inside so lightweight installs without prefect fall back too
+        from prefect import get_run_logger
 
-    try:
         logger = get_run_logger()
     except Exception:
         from loguru import logger
