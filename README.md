@@ -22,6 +22,7 @@ https://github.com/lifewatch/pypam
 | [Converting mseed to flac](#how-to-convert-ooi-mseed-archives-to-flac) | the CLI, and how the gap repair, naming and bit depth work |
 | [Local mirror and raw data server layout](#running-from-a-local-mirror-with-flac-in-the-raw-data-server-layout) | reading mseed from a mounted archive, writing FLAC in its tree and naming |
 | [Run logs](#run-logs) | the per-day log files kept after each run |
+| [Checking a range](#checking-a-range) | finding the days in a range that need a re-run |
 | [Pipeline stages](#pipeline-stages) | what each `--flag` reads and writes |
 | [What gets written](#what-gets-written) | per-file header tags, the per-day manifest, and the cal recorded in each spectrogram |
 | [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
@@ -82,8 +83,9 @@ acoustic-pipeline \
 ```
 
 The mirror must be laid out as `ROOT/<refdes>/YYYY/MM/DD/`, with an optional `addendum/` in
-each day, and keep the archive's filenames (`OO-HYEA2--YDH-<start>.mseed`) - each file's
-nominal start is read from its name. Anything else in a day directory, such as the
+each day, and keep the archive's filenames, which end in the file's start
+(`OO-HYEA2--YDH-<start>.mseed`, `YDH.` before 2016) - each file's nominal start is read from
+its name. Anything else in a day directory, such as the
 per-segment `.png`, is ignored. Repaired traces are sample-identical to a remote run of the
 same files.
 
@@ -99,7 +101,24 @@ same files.
 
 Each run also appends its log to `./logs/INSTRUMENT/INSTRUMENT_YYYYMMDD.log`, including the
 traceback if it fails, so reruns of a day stack up in one file. `grep -r "WARNING\|ERROR\|ISSUE" logs/`
-lists the days worth a look.
+lists the days worth a look. An mseed that won't parse (0-byte or corrupt) is skipped with an
+ISSUE rather than failing the day.
+
+### Checking a range
+
+A local `audio` or `all` run carries on past a day that fails, then checks every day in the
+range and exits nonzero listing the days to re-run. `check-flac` runs the same check on its
+own, after a cloud backfill or on FLAC written elsewhere:
+
+```
+check-flac --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --start-date 2016/01/01 --end-date 2026/09/30 \
+  --flac-root ~/hydbb_flac --mseed-root ~/ooi/san_data
+```
+
+A day with mseed is flagged when it has no manifest (the run failed or was killed), when its
+manifest was built from a different number of mseed than are there now (late addenda), or
+when the FLAC on disk don't match the manifest's count. Only listings and manifests are read.
+`--flac-root s3://ooi-hmb-data/flac` checks the S3 delivery; `--flac-layout ooi` an ooi tree.
 
 ### Pipeline stages
 
@@ -245,7 +264,7 @@ audio so its presence means the day finished:
   "date": "2026-08-19",
   "written_by": "ooi-hyd-tools 1.7.1",
   "counts": "int24_left_justified",
-  "sampling_rate": 64000,
+  "sampling_rates": [64000],
   "gap_threshold_s": 0.023,
   "source_mseed_files": 288,
   "files_written": 286,
@@ -254,11 +273,12 @@ audio so its presence means the day finished:
   "collisions": [{"stamp": "20260819_014500", "kept_s": 299.84,
                   "dropped_s": 0.06, "dropped_start": "2026-08-19T01:45:00.098000Z"}],
   "files": [{"name": "HYDBBA105_20260819_000000.flac",
-             "start": "2026-08-19T00:00:00.014000Z", "npts": 19200000}]
+             "start": "2026-08-19T00:00:00.014000Z", "npts": 19200000, "sampling_rate": 64000}]
 }
 ```
 
 `files` carries the sub-second starts that filenames round away - one read instead of 288 headers.
+`sampling_rates` lists every rate in the day; a few days mix rates, so each file has its own.
 `day_coverage_pct` separates a short recording day from a failed upload. `collisions` records
 pieces dropped because two started in the same second (see Known issues); that audio is unique
 and is written nowhere else.

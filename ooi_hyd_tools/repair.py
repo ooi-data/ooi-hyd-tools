@@ -13,6 +13,7 @@ can import it without the spectrogram stack.
 """
 import concurrent.futures
 import multiprocessing as mp
+import re
 import time
 from contextvars import copy_context
 from datetime import datetime
@@ -21,7 +22,6 @@ from pathlib import Path
 import fsspec
 import numpy as np
 import obspy as obs
-import requests
 from tqdm import tqdm
 
 from ooi_hyd_tools.thresholds import COUNT_THRESHOLD
@@ -36,6 +36,10 @@ NOMINAL_SECONDS = 300
 # rather than letting it fail the task, which would re-download the whole day.
 READ_ATTEMPTS = 4
 RETRY_WAIT = 5  # seconds, doubled each attempt
+
+# the start time ending a CI filename: OO-HYEA2--YDH-2024-11-03T12:00:00.000000Z.mseed, or
+# OO-HYEA2--YDH.2015-09-03T23:55:06.365250.mseed before 2016
+FILENAME_START = re.compile(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)Z?\.mseed$")
 
 
 
@@ -157,19 +161,21 @@ class HydrophoneDay:
 
         The OOI raw data server truncates transfers under load (IncompleteRead). Retrying
         the single file keeps one blip from failing the task and re-downloading the whole
-        day. A file that never arrives returns None and is reported, so the day still
-        produces audio for everything else.
+        day. A file that never arrives or won't parse returns None and is reported, so the
+        day still produces audio for everything else.
         """
         logger = select_logger()
         for attempt in range(1, READ_ATTEMPTS + 1):
             try:
                 # always int32: the writer needs integer counts to left-justify
                 return obs.read(url, apply_calib=False, dtype=np.int32)
-            except (requests.exceptions.RequestException, OSError) as e:
-                if attempt == READ_ATTEMPTS:
+            except Exception as e:
+                # a remote file that won't parse may be a cut-off transfer, so retry it; a
+                # local 0-byte or corrupt file won't improve
+                if attempt == READ_ATTEMPTS or not ("://" in url or isinstance(e, OSError)):
                     logger.warning(
-                        f"ISSUE {url}: no data after {READ_ATTEMPTS} attempts "
-                        f"({type(e).__name__}); this 5 min is missing from the day"
+                        f"ISSUE {url}: unreadable after {attempt} attempt(s) "
+                        f"({type(e).__name__}: {e}); this 5 min is missing from the day"
                     )
                     return None
                 wait = RETRY_WAIT * 2 ** (attempt - 1)
@@ -181,8 +187,11 @@ class HydrophoneDay:
 
     def _nominal_start(self, url):
         """the fixed 5-min startpoint this file belongs to, per its CI filename.
-        Lets a rename upstream blow up here - every file's placement depends on it."""
-        return obs.UTCDateTime(url.split("YDH-")[-1].replace(".mseed", ""))
+        A name with no start time blows up here - every file's placement depends on it."""
+        m = FILENAME_START.search(url)
+        if m is None:
+            raise ValueError(f"no start time in mseed filename {url}")
+        return obs.UTCDateTime(m[1])
 
     def _start_for(self, actual, nominal, label_noise):
         """OEK: keep the fixed 5-min startpoint unless the data really does begin elsewhere.

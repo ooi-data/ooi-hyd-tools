@@ -5,7 +5,7 @@ from pathlib import Path
 import fsspec
 from prefect import task
 
-from ooi_hyd_tools.utils import get_s3_kwargs, select_logger
+from ooi_hyd_tools.utils import flac_day_dir, get_s3_kwargs, manifest_name, select_logger
 
 OOI_DATA_BUCKET = "s3://ooi-hmb-data"
 OOI_VIZ_BUCKET = "s3://ooi-rca-qaqc-prod"
@@ -61,17 +61,14 @@ def sync_flac_to_s3(hyd_refdes, date, s3_fs, logger):
     Follows the .nc layout (hmb/YYYY/INSTRUMENT/) but adds a day level: a year of one
     instrument is ~105k files, too many to sit in a single prefix comfortably.
     """
-    instrument = hyd_refdes[-9:]
     parsed = datetime.strptime(date, "%Y/%m/%d")
-    year = parsed.year
-    day = date.replace("/", "_")
-    flac_dir = Path.cwd() / f"data/flac/{day}/{instrument}"
+    flac_dir = Path(flac_day_dir(Path.cwd() / "data/flac", hyd_refdes, parsed))
     files = sorted(flac_dir.glob("*.flac"))
     if not files:
         logger.warning(f"no flac to sync in {flac_dir}")
         return
 
-    prefix = f"{OOI_DATA_BUCKET}/flac/{year}/{instrument}/{day}"
+    prefix = flac_day_dir(f"{OOI_DATA_BUCKET}/flac", hyd_refdes, parsed)
     total_gb = sum(f.stat().st_size for f in files) / 1e9
     logger.info(f"Uploading {len(files)} flac ({total_gb:.1f} GB) to {prefix}/")
 
@@ -83,7 +80,7 @@ def sync_flac_to_s3(hyd_refdes, date, s3_fs, logger):
     logger.info(f"Uploaded {len(files)} flac to {prefix}/")
 
     # last, so its presence means the day's audio is fully uploaded
-    manifest = flac_dir / f"{instrument}_{parsed.strftime('%Y%m%d')}_manifest.json"
+    manifest = flac_dir / manifest_name(hyd_refdes, parsed)
     if manifest.is_file():
         s3_fs.put(str(manifest), f"{prefix}/{manifest.name}")
         logger.info(f"Uploaded {manifest.name}")

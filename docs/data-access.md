@@ -82,18 +82,21 @@ this per day:
   "date": "2024-11-03",
   "written_by": "ooi-hyd-tools 1.7.1",
   "counts": "int24_left_justified",
-  "sampling_rate": 64000,
+  "sampling_rates": [64000],
   "source_mseed_files": 288,
   "files_written": 288,
   "seconds_written": 86400.0,
   "day_coverage_pct": 100.0,
   "collisions": [],
-  "files": [{"name": "...", "start": "...", "npts": 19200000}]
+  "files": [{"name": "...", "start": "...", "npts": 19200000, "sampling_rate": 64000}]
 }
 ```
 
 - **The manifest is written after all audio for that day**, so its presence means the day
   finished uploading. A day prefix without one is incomplete.
+- **A few days mix sampling rates**, so `sampling_rates` lists every rate in the day and each
+  `files` entry carries its own. Manifests from before v1.8.2 have a single `sampling_rate`
+  instead, which can be wrong on those days; the file header is always right.
 
 ## Current delivery
 

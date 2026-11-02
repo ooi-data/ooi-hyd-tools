@@ -1,6 +1,7 @@
 import logging
 import os
 from contextlib import contextmanager
+from datetime import timedelta
 
 
 def select_logger():
@@ -30,6 +31,30 @@ def log_to_file(path):
     finally:
         prefect_logger.removeHandler(handler)
         handler.close()
+
+
+def iter_dates(start, end=None):
+    current = start
+    end = end or start
+    while current <= end:
+        yield current
+        current += timedelta(days=1)
+
+
+def flac_day_dir(root, refdes, day, layout="pbp"):
+    """where a day of FLAC and its manifest live under root, a local path or s3:// URL.
+    pbp: ROOT/YYYY_MM_DD/INSTRUMENT, or ROOT/YYYY/INSTRUMENT/YYYY_MM_DD on S3.
+    ooi: ROOT/SITE/NODE/INSTRUMENT/YYYY/MM/DD, the raw data server's tree."""
+    root = str(root).rstrip("/")
+    if layout == "ooi":
+        return f"{root}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day:%Y/%m/%d}"
+    if root.startswith("s3://"):  # a year of one instrument is ~105k files, so a day level
+        return f"{root}/{day:%Y}/{refdes[-9:]}/{day:%Y_%m_%d}"
+    return f"{root}/{day:%Y_%m_%d}/{refdes[-9:]}"
+
+
+def manifest_name(refdes, day):
+    return f"{refdes[-9:]}_{day:%Y%m%d}_manifest.json"
 
 
 def get_s3_kwargs():

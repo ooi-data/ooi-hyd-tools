@@ -10,7 +10,7 @@ from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.low_freq import run_low_freq_oneday
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
 from ooi_hyd_tools.repair import HydrophoneDay
-from ooi_hyd_tools.utils import log_to_file, select_logger
+from ooi_hyd_tools.utils import flac_day_dir, log_to_file, manifest_name, select_logger
 from ooi_hyd_tools.seismometer import run_obs_viz
 
 
@@ -47,9 +47,13 @@ def _write_audio(path, data, sr, subtype, refdes, start, npts):
     can parse (meta_gen/utils.py matches {prefix}_YYYYMMDD_HHMMSS. and nothing after).
     A recording that resumes mid-second therefore loses up to 1 s in its name, so the
     true start goes in the FLAC's Vorbis comment, where nothing truncates it.
+
+    Written to a .part file and renamed when complete, so a killed run never leaves a
+    FLAC that won't decode.
     """
+    part = path.with_name(f"{path.name}.part")
     with sf.SoundFile(
-        str(path),
+        str(part),
         "w",
         samplerate=sr,
         channels=1,
@@ -64,6 +68,7 @@ def _write_audio(path, data, sr, subtype, refdes, start, npts):
             f"counts=int24_left_justified"
         )
         f.write(data)
+    part.replace(path)
 
 
 @task(retries=2, retry_delay_seconds=60)
@@ -84,11 +89,7 @@ def convert_mseed_to_audio(
     else:
         # make dirs
         logger.info("Creating data directories")
-        date_str = datetime.strftime(hyd.date, "%Y_%m_%d")
-        flac_dir = Path.cwd() / f"data/flac/{date_str}/{hyd.refdes[18:]}"
-        if flac_layout == "ooi":
-            r = hyd.refdes
-            flac_dir = Path.cwd() / f"data/flac/{r[0:8]}/{r[9:14]}/{r[18:27]}/{date}"
+        flac_dir = Path(flac_day_dir(Path.cwd() / "data/flac", hyd_refdes, hyd.date, flac_layout))
         flac_dir.mkdir(parents=True, exist_ok=True)
 
         written = 0
@@ -150,7 +151,7 @@ def convert_mseed_to_audio(
             "date": hyd.date.strftime("%Y-%m-%d"),
             "written_by": f"ooi-hyd-tools {version('ooi-hyd-tools')}",
             "counts": "int24_left_justified",
-            "sampling_rate": next(iter(seen.values()))[2] if seen else None,
+            "sampling_rates": sorted({sr for _, _, sr, _ in seen.values()}),  # see files
             "gap_threshold_s": gap_threshold,
             "source_mseed_files": len(hyd.mseed_urls),
             "files_written": len(seen),
@@ -158,12 +159,11 @@ def convert_mseed_to_audio(
             "day_coverage_pct": round(100 * written / 86400, 2),
             "collisions": collisions,
             "files": [  # sorted: seen is filled by a thread pool, so its order varies
-                {"name": f"{name}.flac", "start": str(start), "npts": npts}
-                for _, (npts, start, _, name) in sorted(seen.items())
+                {"name": f"{name}.flac", "start": str(start), "npts": npts, "sampling_rate": sr}
+                for _, (npts, start, sr, name) in sorted(seen.items())
             ],
         }
-        manifest_name = f"{hyd_refdes[-9:]}_{hyd.date.strftime('%Y%m%d')}_manifest.json"
-        (flac_dir / manifest_name).write_text(json.dumps(manifest, indent=2))
+        (flac_dir / manifest_name(hyd_refdes, hyd.date)).write_text(json.dumps(manifest, indent=2))
 
         # what fraction of the day actually made it to disk
         logger.info(
@@ -179,9 +179,9 @@ def find_flac_day(hyd_refdes, date):
     Spectrograms are built from FLAC in ./data, not from mseed, so this answers "is it
     there" up front rather than letting pbp fail on an empty metadata index.
     """
-    instrument, date_str = hyd_refdes[-9:], date.replace("/", "_")
-    flac_dir = Path.cwd() / f"data/flac/{date_str}/{instrument}"
-    manifest = flac_dir / f"{instrument}_{date.replace('/', '')}_manifest.json"
+    day = datetime.strptime(date, "%Y/%m/%d")
+    flac_dir = Path(flac_day_dir(Path.cwd() / "data/flac", hyd_refdes, day))
+    manifest = flac_dir / manifest_name(hyd_refdes, day)
     if not manifest.is_file():
         return None
     m = json.loads(manifest.read_text())

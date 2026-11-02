@@ -2,9 +2,10 @@ import click
 import yaml
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta, timezone
-from ooi_hyd_tools.utils import select_logger
+from ooi_hyd_tools.utils import iter_dates, select_logger
 from ooi_hyd_tools.thresholds import GAP_THRESHOLD
 
 logger = select_logger()
@@ -20,14 +21,6 @@ with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
     HYD_CONFIG_DICT = yaml.safe_load(f)
 with open("./ooi_hyd_tools/config/obs_config.yaml", "r") as f:
     OBS_CONFIG_DICT = yaml.safe_load(f)
-
-
-def iter_dates(start: datetime, end: datetime | None):
-    current = start
-    end = end or start
-    while current <= end:
-        yield current
-        current += timedelta(days=1)
 
 
 def build_params(
@@ -217,6 +210,7 @@ def run_acoustic_pipeline(
     start_date = datetime.strptime(start_date, "%Y/%m/%d")
     end_date = datetime.strptime(end_date, "%Y/%m/%d") if end_date else None
 
+    failed = []
     for date in iter_dates(start_date, end_date):
         params = build_params(
             date=date,
@@ -228,7 +222,19 @@ def run_acoustic_pipeline(
             flag=flag,
             obs_run_type=obs_run_type,
         )
-        _runner.run(date, params)
+        try:  # carry on so one bad day doesn't stop a range; the check below lists it
+            _runner.run(date, params)
+        except Exception:
+            logger.exception(f"{hyd_refdes} {date:%Y/%m/%d} failed")
+            failed.append(date)
+
+    if runner == "local" and flag in ("audio", "all"):
+        from ooi_hyd_tools.check import check_range
+
+        failed += check_range(hyd_refdes, start_date, end_date, Path.cwd() / "data/flac", flac_layout, mseed_root)
+    if failed:
+        days = sorted(set(failed))
+        raise click.ClickException(f"{len(days)} day(s) to re-run: {', '.join(f'{d:%Y/%m/%d}' for d in days)}")
 
 
 if __name__ == "__main__":
