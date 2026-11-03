@@ -42,17 +42,15 @@ Longer notes live in [`docs/`](docs/):
   ingest, in the OOI ORB driver that writes the mseed, would take.
 
 # How to convert ooi mseed archives to flac
-`git clone https://github.com/ooi-data/ooi-hyd-tools.git`
+```
+git clone https://github.com/ooi-data/ooi-hyd-tools.git
+conda create -n ooi-hyd-tools python=3.11 pip
+conda activate ooi-hyd-tools
+cd ooi-hyd-tools
+pip install -e .
+```
 
-`conda create -n ooi-hyd-tools python=3.11 pip`
-
-`conda activate ooi-hyd-tools`
-
-`cd ooi-hyd-tools`
-
-`pip install -e .`
-
-Now you can run the `acoustic-pipeline` command to convert a single day or multiple days of archived ooi mseed to a day of 5 minute audio files.
+`acoustic-pipeline` converts one day or a range of archived OOI mseed to 5-minute FLAC:
 
 ```
 acoustic-pipeline \
@@ -61,10 +59,8 @@ acoustic-pipeline \
 --end-date "2025/03/15" \
 --flag audio
 ```
-`--flag all` (the default) also generates hybrid millidecade spectrograms.
-`acoustic-pipeline --help` To learn more about each argument. 
-
-Data for the audio stage of the pipeline is output to `./data` dir. Millidecade spectrogram plots are output to `./output` dir.
+`--flag all` (the default) also builds hybrid millidecade spectrograms. FLAC go to `./data`,
+spectrograms to `./output`. `acoustic-pipeline --help` describes every option.
 
 ### Running from a local mirror, with FLAC in the raw data server layout
 
@@ -85,9 +81,8 @@ acoustic-pipeline \
 The mirror must be laid out as `ROOT/<refdes>/YYYY/MM/DD/`, with an optional `addendum/` in
 each day, and keep the archive's filenames, which end in the file's start
 (`OO-HYEA2--YDH-<start>.mseed`, `YDH.` before 2016) - each file's nominal start is read from
-its name. Anything else in a day directory, such as the
-per-segment `.png`, is ignored. Repaired traces are sample-identical to a remote run of the
-same files.
+its name. Anything else in a day directory, such as the per-segment `.png`, is ignored.
+Repaired traces are sample-identical to a remote run of the same files.
 
 - A day with no mseed is skipped, as on the remote archive. A missing `ROOT/<refdes>` raises
   instead, since an unmounted share would otherwise look like a run of empty days.
@@ -139,7 +134,7 @@ run `--flag spectrogram`, which reuses the FLAC and never touches the raw data s
 raises `FileNotFoundError` if the day's manifest is missing.
 
 `low_freq` and `obs` are separate paths: both pull from Earthscope rather than the raw
-archive and never read `./data/flac`, so the FLAC check does not apply to them.
+archive and never read `./data/flac`.
 
 ## How the repair works
 ### Jitter and gap repair
@@ -262,7 +257,7 @@ audio so its presence means the day finished:
 {
   "refdes": "CE04OSBP-LJ01C-11-HYDBBA105",
   "date": "2026-08-19",
-  "written_by": "ooi-hyd-tools 1.7.1",
+  "written_by": "ooi-hyd-tools 1.8.2",
   "counts": "int24_left_justified",
   "sampling_rates": [64000],
   "gap_threshold_s": 0.023,
@@ -323,7 +318,7 @@ event-audio \
 --fade 1.0
 ```
 
-`--speed` rewrites the sample rate `--bandpass LOW HIGH` isolates event of interest, `--normalize` boosts a quiet clip, and `--fade SEC` tapers both ends. `event-audio --help` for all arguments.
+`--speed` rewrites the sample rate, `--bandpass LOW HIGH` isolates the event, `--normalize` boosts a quiet clip, and `--fade SEC` tapers both ends. `event-audio --help` lists all arguments.
 
 # Live stream to Orcasound
 
@@ -343,7 +338,8 @@ ooi-stream --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --node-name ooi_oregon_shelf
 - Levels are counts with a fixed `--gain-db` and a soft limiter, for listening, not
   calibrated pressure. Instruments differ by ~25 dB, so set the gain per hydrophone.
 - `--bucket s3://audio-orcasound-net` uploads as orcanode does, with Orcasound's AWS keys.
-  Without it, output stays in `./data/stream`; play it with `ffplay <dir>/live.m3u8`.
+  Without it, output stays in `./data/stream`; `ooi-listen <node_name>` plays it with the
+  audio's UTC and Pacific time.
 - `--start YYYY-MM-DDTHH:MM --mseed-root DIR` replays past data at real-time pace, for testing.
 
 `stream/` holds a slim image (no pbp or prefect) and a compose file running all three
@@ -391,9 +387,10 @@ Ordered by size of the error on delivered spectrograms.
 | Step change | all instruments, >12 kHz | The v1.7 bit-depth fix removed **+0.96 dB at 20-27 kHz** (+0.45 at 12-20 kHz). Within daily variability, but a step in multi-year records; note reprocess dates for trend work |
 | Placeholder | `HYDBBA105` deps 2, 4 and 10 | **True vendor cals missing.** Dep 10's doc is a pressure-test certificate, so it uses the prior cal; deps 2 and 4 have only plot-only certs before them, so they use the next later cal. Each carries a `placeholder` reason |
 | No cal | `HYDBBA303` deps 1-9 (2014-2024), `HYDBBA103` deps 1-11 (2014-2025) | Not transcribed, so spectrograms raise `FileNotFoundError` for about ten years of each. Certs exist in calibrationFiles. **Deprioritised**: both are mooring-mounted |
-| Collision loss | seafloor instruments, 2016-07-20; extent unknown | CI emits a companion file 16 µs after the real one, which whole-second filenames can't separate; the guard keeps the longer piece and logs an ISSUE. The dropped piece is **unique audio**, 0.5-3 s per instrument that day. `--flac-layout ooi` names files to the microsecond, so it keeps both pieces; the default pbp layout still drops one |
-| Junk stub files | same instruments and day | Stubs straddling a file boundary round to their own second and survive as 64-sample FLACs - **152** of them on `HYDBBA102`'s 622-file day. Acoustically harmless but inflate file counts by a third; a minimum-duration floor would drop them |
-| Duplicated packets | `HYDBBA105`, `HYDBBA302` 2023-06-15 17:25-17:35; extent unknown | CASE C (more samples than 5 min holds) on both instruments in the same three windows with matching sizes, pointing to duplicated packets shore-side. Audio is kept and flagged, so six FLACs run slightly over 300 s: **suspect for sample-accurate work**. The archive has **never been swept** for it |
+| Collision loss | seafloor instruments; `HYDBBA106` 419 of 1,902 days | Two pieces starting in the same second can't both get a whole-second name; the guard keeps the longer and logs an ISSUE. The dropped piece is **unique audio**: ~1.4 h across `HYDBBA106`'s archive, but **about a third of the day** on days CI split into ~1,600 files (2019-12-08, 2022-11-29). `--flac-layout ooi` names files to the microsecond and keeps both; the default pbp layout still drops one |
+| Mixed rates | `HYDBBA106` 2024-08-20 (6.4 kHz addenda), 2025-06-24 to 06-28 (64/128/256 kHz) | FLAC headers and manifests (from v1.8.2) carry each file's rate. Whether pbp handles mixed rates within a day is **unchecked**, so treat those days' spectrograms as suspect |
+| Junk stub files | seafloor instruments | Stubs straddling a file boundary round to their own second and survive as 64-sample FLACs - **152** on `HYDBBA102`'s 622-file 2016-07-20, **366** across `HYDBBA106`'s archive. Acoustically harmless; a minimum-duration floor would drop them |
+| Duplicated packets | `HYDBBA105`, `HYDBBA302` 2023-06-15 17:25-17:35; extent unknown | CASE C (more samples than 5 min holds) on both instruments in the same three windows with matching sizes, pointing to duplicated packets shore-side. Audio is kept and flagged, so six FLACs run slightly over 300 s: **suspect for sample-accurate work**. `HYDBBA106`'s full archive has one (2026-10-25); the other instruments have **not been swept** |
 | Degenerate timestamps | `HYDBBA102` 2023-06-15; extent unknown | Every trace in a file shares one timestamp, so naming from the first trace **scatters output and fragments the spectrogram**; the audio itself is correct. Upstream only began per-trace starttimes in Sep-Oct 2023, so earlier data may be affected. Fix (name from the filename when labels span less time than the audio) not implemented; **not surveyed** |
 
 Re-run `cal-to-nc build` after editing a spec. The seafloor instruments (HYDBBA102, 105, 106, 302) have cals from deployment 1; of the mooring-mounted ones, HYDBBA303 from deployment 10 and HYDBBA103 from deployment 12.
