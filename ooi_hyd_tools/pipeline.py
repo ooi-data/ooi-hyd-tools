@@ -10,7 +10,7 @@ from ooi_hyd_tools.thresholds import GAP_THRESHOLD
 
 logger = select_logger()
 
-PREFECT_DEPLOYMENT = "acoustic-flow-oneday/"
+PREFECT_DEPLOYMENT = "acoustic-flow-oneday/hydbb_pipeline"
 TIMEOUT = 12  # if lowered, the OOI raw data server will be overloaded
 
 now_utc = datetime.now(timezone.utc)
@@ -63,16 +63,23 @@ class LocalRunner(Runner):
         acoustic_flow_oneday(**params, mseed_root=self.mseed_root, flac_layout=self.flac_layout)
 
 
+def ecs_job_variables(size: str) -> dict:
+    """Prefect job_variables for an ECS size string like "4vcpu_30gb"."""
+    vcpu, gb = size.removesuffix("gb").split("vcpu_")
+    return {"cpu": int(vcpu) * 1024, "memory": int(gb) * 1024}
+
+
 class PrefectRunner(Runner):
-    def __init__(self, deployment_name: str):
-        self.deployment_name = deployment_name
+    def __init__(self, size: str):
+        self.size = size
 
     def run(self, date: datetime, params: dict) -> None:
         run_name = f"{params['hyd_refdes']}_{date.strftime('%Y-%m-%d')}"
         logger.info(f"Launching workflow for {run_name} in cloud")
         run_deployment(
-            name=self.deployment_name,
+            name=PREFECT_DEPLOYMENT,
             parameters=params,
+            job_variables=ecs_job_variables(self.size),
             flow_run_name=run_name,
             timeout=TIMEOUT,
         )
@@ -195,15 +202,12 @@ def run_acoustic_pipeline(
         )
 
     config_dict = OBS_CONFIG_DICT if flag == "obs" else HYD_CONFIG_DICT
-    deployment_name = (
-        f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes][obs_run_type]}"
-        if flag == "obs"
-        else f"{PREFECT_DEPLOYMENT}{config_dict[hyd_refdes]}"
-    )
+    # ECS size per instrument (and obs run type) from config/
+    size = config_dict[hyd_refdes][obs_run_type] if flag == "obs" else config_dict[hyd_refdes]
 
     runners = {
         "local": LocalRunner(mseed_root, flac_layout),
-        "prefect": PrefectRunner(deployment_name),
+        "prefect": PrefectRunner(size),
     }
     _runner = runners[runner]
 
