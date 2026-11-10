@@ -49,24 +49,15 @@ def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
         max_workers = min(24, 2 * mp.cpu_count())
         select_logger().debug(f"Max workers: {max_workers}")
 
-    results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Start the load operations and mark each future with its URL. Each worker runs in
-        # a copy of the caller's context so it keeps the prefect run logger - without this
-        # a worker's logging has no run to attach to and never reaches the flow run.
-        future_to_url = {
-            executor.submit(copy_context().run, func, i, args): i for i in iterator
-        }
-        # Disable progress bar
-        is_disabled = not verbose
-        for future in tqdm(
-            concurrent.futures.as_completed(future_to_url),
-            total=len(iterator),
-            disable=is_disabled,
-        ):
-            data = future.result()
-            results.append(data)
-    return results
+        # Each worker runs in a copy of the caller's context so it keeps the prefect run
+        # logger - without this a worker's logging has no run to attach to and never
+        # reaches the flow run.
+        futures = [executor.submit(copy_context().run, func, i, args) for i in iterator]
+        for _ in tqdm(concurrent.futures.as_completed(futures), total=len(futures), disable=not verbose):
+            pass
+    # in input order, so results line up with the urls that made them
+    return [f.result() for f in futures]
 
 
 

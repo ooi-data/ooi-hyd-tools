@@ -16,7 +16,8 @@ from ooi_hyd_tools.seismometer import run_obs_viz
 
 """
 Convert a day of OOI hydrophone mseed from the raw data archive into 5-minute FLAC,
-written to ./data/flac/YYYY_MM_DD/INSTRUMENT/ as INSTRUMENT_YYYYMMDD_HHMMSS.flac.
+written to FLAC_ROOT/YYYY_MM_DD/INSTRUMENT/ as INSTRUMENT_YYYYMMDD_HHMMSS.flac. FLAC_ROOT
+defaults to ./data/flac.
 
 Two things make this more than a format conversion:
 
@@ -29,9 +30,9 @@ Filenames carry whole seconds only, because that is all mbari-pbp can parse. The
 start, including sub-second, goes in the file header - see _write_audio.
 
 flac_layout="ooi" instead mirrors the raw data server, for copying FLAC alongside the
-mseed: ./data/flac/SITE/NODE/INSTRUMENT/YYYY/MM/DD/ with the server's file naming, e.g.
-OO-HYEA2--YDH-2026-10-20T00:40:00.014000Z.flac. pbp can't read those names, so that
-layout is for the audio stage only.
+mseed: FLAC_ROOT/SITE/NODE/INSTRUMENT/YYYY/MM/DD/[addendum/] with the server's file naming,
+e.g. OO-HYEA2--YDH-2026-10-20T00:40:00.014000Z.flac. pbp can't read those names or the
+addendum/ split, so that layout is for the audio stage only.
 
 """
 
@@ -78,6 +79,7 @@ def convert_mseed_to_audio(
     gap_threshold,
     mseed_root=None,
     flac_layout="pbp",
+    flac_root=Path("data/flac"),
 ):
     logger = select_logger()
     hyd = HydrophoneDay(hyd_refdes, date, gap_threshold, mseed_root=mseed_root)
@@ -89,15 +91,17 @@ def convert_mseed_to_audio(
     else:
         # make dirs
         logger.info("Creating data directories")
-        flac_dir = Path(flac_day_dir(Path.cwd() / "data/flac", hyd_refdes, hyd.date, flac_layout))
+        flac_dir = Path(flac_day_dir(flac_root, hyd_refdes, hyd.date, flac_layout))
         flac_dir.mkdir(parents=True, exist_ok=True)
 
         written = 0
         seen = {}  # stamp -> (npts, start, sr, name), to catch two pieces landing in one second
         collisions = []  # kept for the manifest; otherwise this evidence only ever gets logged
-        for st in hyd.clean_list:
+        for url, st in zip(hyd.mseed_urls, hyd.clean_list):
             if st is None:
                 continue
+            # the ooi layout keeps addenda in addendum/ as the server does; pbp needs one folder
+            sub = "addendum/" if flac_layout == "ooi" and "/addendum/" in url else ""
             for tr in st:  # normally one chunk; more when a real gap split the file
                 sr = int(tr.stats["sampling_rate"])
                 start = tr.stats["starttime"]
@@ -108,7 +112,8 @@ def convert_mseed_to_audio(
                     # the server's naming, to the microsecond, so pieces never share a name
                     s = tr.stats
                     stamp = start.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-                    name = f"{s.network}-{s.station}-{s.location}-{s.channel}-{stamp}"
+                    name = f"{sub}{s.network}-{s.station}-{s.location}-{s.channel}-{stamp}"
+                    stamp = f"{sub}{stamp}"  # same start in the day and addendum/ isn't a clash
 
                 # CI occasionally chops one 5-min window into pieces starting ~100 ms
                 # apart, which round to the same filename. Keep the longer piece and say
@@ -136,6 +141,7 @@ def convert_mseed_to_audio(
                 seen[stamp] = (npts, start, sr, name)
 
                 flac_path = flac_dir / f"{name}.flac"
+                flac_path.parent.mkdir(exist_ok=True)
                 logger.debug(str(flac_path))
                 # counts are left-shifted so PCM_24 stores them intact, see INT24_SHIFT
                 _write_audio(
@@ -173,19 +179,20 @@ def convert_mseed_to_audio(
         return hyd
 
 
-def find_flac_day(hyd_refdes, date):
-    """The manifest for a day of FLAC already on disk, or None.
+def find_flac_day(hyd_refdes, date, flac_root):
+    """The manifest for a day of FLAC already on disk, plus its folder, or None.
 
-    Spectrograms are built from FLAC in ./data, not from mseed, so this answers "is it
+    Spectrograms are built from FLAC on disk, not from mseed, so this answers "is it
     there" up front rather than letting pbp fail on an empty metadata index.
     """
     day = datetime.strptime(date, "%Y/%m/%d")
-    flac_dir = Path(flac_day_dir(Path.cwd() / "data/flac", hyd_refdes, day))
+    flac_dir = Path(flac_day_dir(flac_root, hyd_refdes, day))
     manifest = flac_dir / manifest_name(hyd_refdes, day)
     if not manifest.is_file():
         return None
     m = json.loads(manifest.read_text())
     m["on_disk"] = len(list(flac_dir.glob("*.flac")))
+    m["dir"] = flac_dir
     return m
 
 
@@ -201,12 +208,17 @@ def acoustic_flow_oneday(
     obs_run_type,
     mseed_root=None,
     flac_layout="pbp",
+    flac_root=None,
 ):
+    flac_root = Path(flac_root).expanduser().resolve() if flac_root else Path.cwd() / "data/flac"
     # kept after the run, unlike Prefect's; appended, so reruns of a day stack up
     log_path = Path.cwd() / f"logs/{hyd_refdes[-9:]}/{hyd_refdes[-9:]}_{date.replace('/', '')}.log"
     with log_to_file(log_path):
         logger = select_logger()
-        logger.info(f"run: flag={flag} mseed_root={mseed_root} flac_layout={flac_layout} s3_sync={s3_sync}")
+        logger.info(
+            f"run: flag={flag} mseed_root={mseed_root} flac_root={flac_root} "
+            f"flac_layout={flac_layout} s3_sync={s3_sync}"
+        )
         # log python package versions on cloud machine
         installed_packages = {dist.metadata["Name"]: dist.version for dist in distributions()}
         logger.info(f"Installed packages: {installed_packages}")
@@ -218,16 +230,16 @@ def acoustic_flow_oneday(
                 gap_threshold=gap_threshold,
                 mseed_root=mseed_root,
                 flac_layout=flac_layout,
+                flac_root=flac_root,
             )
             if hyd is None:
                 logger.warning(f"No data availale for {date}. Moving to next day.")
                 return
 
-            # first element of list is different each time due to multithreading - could add sort step?
             logger.info(f"first 5 elements of cleaned mseed list: {hyd.clean_list[:5]}")
 
         if flag == "spectrogram" or flag == "all":
-            m = find_flac_day(hyd_refdes, date)
+            m = find_flac_day(hyd_refdes, date, flac_root)
             if m is None:
                 raise FileNotFoundError(
                     f"no flac for {hyd_refdes} {date} - run --flag audio first"
@@ -239,7 +251,7 @@ def acoustic_flow_oneday(
                 f"spectrogram from {m['files_written']} flac, {m['day_coverage_pct']}% of the "
                 f"day, written by {m['written_by']}"
             )
-            audio_to_spec(date, "flac", hyd_refdes, apply_cals, freq_lims)
+            audio_to_spec(date, m["dir"], hyd_refdes, apply_cals, freq_lims)
 
         if flag == "low_freq":
             run_low_freq_oneday(hyd_refdes, date, logger)
@@ -248,7 +260,7 @@ def acoustic_flow_oneday(
             run_obs_viz(hyd_refdes, date, obs_run_type)
 
         if s3_sync:  # "spectrogram" (.nc + .png) or "all" (those plus flac)
-            sync_png_nc_to_s3(hyd_refdes, date, flag, scope=s3_sync)
+            sync_png_nc_to_s3(hyd_refdes, date, flag, scope=s3_sync, flac_root=flac_root)
 
 
 if __name__ == "__main__":

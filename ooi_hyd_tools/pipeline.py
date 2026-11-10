@@ -17,10 +17,9 @@ now_utc = datetime.now(timezone.utc)
 yesterday_utc = now_utc - timedelta(days=1)
 yesterday = yesterday_utc.strftime("%Y/%m/%d")
 
-with open("./ooi_hyd_tools/config/config.yaml", "r") as f:
-    HYD_CONFIG_DICT = yaml.safe_load(f)
-with open("./ooi_hyd_tools/config/obs_config.yaml", "r") as f:
-    OBS_CONFIG_DICT = yaml.safe_load(f)
+CONFIG_DIR = Path(__file__).parent / "config"  # so the CLI runs from any directory
+HYD_CONFIG_DICT = yaml.safe_load((CONFIG_DIR / "config.yaml").read_text())
+OBS_CONFIG_DICT = yaml.safe_load((CONFIG_DIR / "obs_config.yaml").read_text())
 
 
 def build_params(
@@ -51,16 +50,19 @@ class Runner(ABC):
 
 
 class LocalRunner(Runner):
-    def __init__(self, mseed_root=None, flac_layout="pbp"):
+    def __init__(self, mseed_root=None, flac_layout="pbp", flac_root=None):
         self.mseed_root = mseed_root
         self.flac_layout = flac_layout
+        self.flac_root = flac_root
 
     def run(self, date: datetime, params: dict) -> None:
         # imported here so --runner prefect dispatch needs only prefect, not the science stack
         from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
 
         # local-only options stay out of params: those go to the cloud deployments
-        acoustic_flow_oneday(**params, mseed_root=self.mseed_root, flac_layout=self.flac_layout)
+        acoustic_flow_oneday(
+            **params, mseed_root=self.mseed_root, flac_layout=self.flac_layout, flac_root=self.flac_root
+        )
 
 
 def ecs_job_variables(size: str) -> dict:
@@ -140,7 +142,7 @@ class PrefectRunner(Runner):
     default="all",
     show_default=True,
     help="Which stage of pipeline to run: 'audio' converts mseed to audio for broadband hydrophones,"
-    " 'spectrogram' builds broadband spectrograms from FLAC already in ./data and fails if none is"
+    " 'spectrogram' builds broadband spectrograms from FLAC already in --flac-root and fails if none is"
     " there, 'all' runs both broadband routines from the mseed archive."
     " 'low_freq' generates spectrograms for low freq hydrophones, 'obs' processes OBS seismometer data.",
 )
@@ -166,8 +168,16 @@ class PrefectRunner(Runner):
     default="pbp",
     show_default=True,
     help="'ooi' writes FLAC in the raw data server's tree and naming,"
-    " ./data/flac/SITE/NODE/INSTRUMENT/YYYY/MM/DD/OO-HYEA2--YDH-<start>.flac, for copying"
-    " alongside the mseed. pbp can't read those names: only with --flag audio and --runner local.",
+    " FLAC_ROOT/SITE/NODE/INSTRUMENT/YYYY/MM/DD/[addendum/]OO-HYEA2--YDH-<start>.flac, for"
+    " copying alongside the mseed. pbp can't read those names: only with --flag audio and"
+    " --runner local.",
+)
+@click.option(
+    "--flac-root",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Where FLAC are written and read, in the --flac-layout tree. Default ./data/flac."
+    " Only with --runner local.",
 )
 @click.option(
     "--runner",
@@ -189,10 +199,13 @@ def run_acoustic_pipeline(
     obs_run_type,
     mseed_root,
     flac_layout,
+    flac_root,
     runner,
 ):
     if mseed_root and runner != "local":
         raise click.UsageError("--mseed-root needs --runner local; ECS can't see a local mount")
+    if flac_root and runner != "local":
+        raise click.UsageError("--flac-root needs --runner local; ECS writes its own disk")
     if mseed_root and flag not in ("audio", "all"):
         raise click.UsageError("--mseed-root only feeds the broadband mseed -> flac stage")
     if flac_layout == "ooi" and (flag != "audio" or runner != "local" or s3_sync == "all"):
@@ -206,7 +219,7 @@ def run_acoustic_pipeline(
     size = config_dict[hyd_refdes][obs_run_type] if flag == "obs" else config_dict[hyd_refdes]
 
     runners = {
-        "local": LocalRunner(mseed_root, flac_layout),
+        "local": LocalRunner(mseed_root, flac_layout, flac_root),
         "prefect": PrefectRunner(size),
     }
     _runner = runners[runner]
@@ -235,7 +248,8 @@ def run_acoustic_pipeline(
     if runner == "local" and flag in ("audio", "all"):
         from ooi_hyd_tools.check import check_range
 
-        failed += check_range(hyd_refdes, start_date, end_date, Path.cwd() / "data/flac", flac_layout, mseed_root)
+        root = Path(flac_root).expanduser().resolve() if flac_root else Path.cwd() / "data/flac"
+        failed += check_range(hyd_refdes, start_date, end_date, root, flac_layout, mseed_root)
     if failed:
         days = sorted(set(failed))
         raise click.ClickException(f"{len(days)} day(s) to re-run: {', '.join(f'{d:%Y/%m/%d}' for d in days)}")

@@ -59,14 +59,17 @@ acoustic-pipeline \
 --end-date "2025/03/15" \
 --flag audio
 ```
-`--flag all` (the default) also builds hybrid millidecade spectrograms. FLAC go to `./data`,
-spectrograms to `./output`. `acoustic-pipeline --help` describes every option.
+`--flag all` (the default) also builds hybrid millidecade spectrograms. FLAC go to
+`./data/flac`, or anywhere with `--flac-root`; spectrograms go to `./output`. The audio stage
+runs from any directory, but the spectrogram stage reads cals from `./metadata`, so run it from
+the repo root. `acoustic-pipeline --help` describes every option.
 
 ### Running from a local mirror, with FLAC in the raw data server layout
 
 On a machine with the raw archive mounted, `--mseed-root` reads the broadband mseed from disk
-instead of the OOI raw data server, and `--flac-layout ooi` writes FLAC in the server's tree
-and naming, so a day can be copied in alongside its mseed. Either works without the other.
+instead of the OOI raw data server, and `--flac-layout ooi` writes FLAC in the web server's
+tree and naming, addenda in `addendum/` included, so a day can be copied in alongside its
+mseed. `--flac-root` picks the folder the tree is built under. Each works without the others.
 
 ```
 acoustic-pipeline \
@@ -74,8 +77,9 @@ acoustic-pipeline \
 --start-date "2024/11/03" \
 --mseed-root ~/ooi/san_data \
 --flac-layout ooi \
+--flac-root /data/hydbb_flac \
 --flag audio
-# -> ./data/flac/CE02SHBP/LJ01D/HYDBBA106/2024/11/03/OO-HYEA2--YDH-<start>.flac
+# -> /data/hydbb_flac/CE02SHBP/LJ01D/HYDBBA106/2024/11/03/[addendum/]OO-HYEA2--YDH-<start>.flac
 ```
 
 The mirror must be laid out as `ROOT/<refdes>/YYYY/MM/DD/`, with an optional `addendum/` in
@@ -88,9 +92,13 @@ Repaired traces are sample-identical to a remote run of the same files.
   instead, since an unmounted share would otherwise look like a run of empty days.
 - `--mseed-root` only feeds the broadband `audio` and `all` stages, and is refused with
   `--runner prefect`, which can't see a local mount.
-- `--flac-layout ooi` names carry the true start to the microsecond, so they may differ slightly
-  from the source mseed's; the day's manifest is written alongside. pbp can't parse these
-  names, so it needs `--flag audio` and the local runner, and is refused with `--s3-sync all`.
+- `--flac-layout ooi` names carry the true start to the microsecond, so they may differ
+  from the source mseed's (an addendum labelled `14:45:00` whose data starts at `14:45:31.167`
+  is named for 14:45:31.167). The day's manifest sits in the day folder and lists addenda as
+  `addendum/<name>`. pbp can't parse these names or the split, so the layout needs
+  `--flag audio` and the local runner, and is refused with `--s3-sync all`. The default pbp
+  layout keeps every day in one folder, so spectrograms are unaffected.
+- `--flac-root` is refused with `--runner prefect`, which writes to its own disk.
 
 ### Run logs
 
@@ -102,7 +110,7 @@ ISSUE rather than failing the day.
 ### Checking a range
 
 A local `audio` or `all` run carries on past a day that fails, then checks every day in the
-range and exits nonzero listing the days to re-run. `check-flac` runs the same check on its
+range (under its `--flac-root` and `--flac-layout`) and exits nonzero listing the days to re-run. `check-flac` runs the same check on its
 own, after a cloud backfill or on FLAC written elsewhere:
 
 ```
@@ -112,7 +120,8 @@ check-flac --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --start-date 2016/01/01 --en
 
 A day with mseed is flagged when it has no manifest (the run failed or was killed), when its
 manifest was built from a different number of mseed than are there now (late addenda), or
-when the FLAC on disk don't match the manifest's count. Only listings and manifests are read.
+when the FLAC on disk, `addendum/` included, don't match the manifest's count. Only listings
+and manifests are read.
 `--flac-root s3://ooi-hmb-data/flac` checks the S3 delivery; `--flac-layout ooi` an ooi tree.
 
 ### Pipeline stages
@@ -122,11 +131,13 @@ from mseed, so the two broadband stages can be run separately:
 
 | `--flag` | reads | writes |
 | --- | --- | --- |
-| `audio` | mseed archive, or a local mirror with `--mseed-root` | `./data/flac/YYYY_MM_DD/INSTRUMENT/` plus the day's manifest |
-| `spectrogram` | FLAC already in `./data` | `./output/INSTRUMENT_YYYYMMDD.{nc,png}` |
+| `audio` | mseed archive, or a local mirror with `--mseed-root` | `FLAC_ROOT/YYYY_MM_DD/INSTRUMENT/` plus the day's manifest |
+| `spectrogram` | FLAC already in `FLAC_ROOT` | `./output/INSTRUMENT_YYYYMMDD.{nc,png}` |
 | `all` | same as `audio` | both, in one pass |
 | `low_freq` | Earthscope, via `ooipy` | `./output/INSTRUMENT_YYYYMMDD.png` |
 | `obs` | Earthscope FDSN web service | `./output/SITE/` seismometer plots |
+
+`FLAC_ROOT` is `--flac-root`, default `./data/flac`.
 
 `audio` and `all` always rebuild from the archive; neither skips a day that is already on
 disk. To redo only the spectrogram - the usual case when pbp failed but the audio is fine -
@@ -134,7 +145,7 @@ run `--flag spectrogram`, which reuses the FLAC and never touches the raw data s
 raises `FileNotFoundError` if the day's manifest is missing.
 
 `low_freq` and `obs` are separate paths: both pull from Earthscope rather than the raw
-archive and never read `./data/flac`.
+archive and never read FLAC.
 
 ## How the repair works
 ### Jitter and gap repair

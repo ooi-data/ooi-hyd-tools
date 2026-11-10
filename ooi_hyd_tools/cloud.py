@@ -13,7 +13,9 @@ FLAC_UPLOAD_WORKERS = 8  # a day is ~288 files / ~6 GB, so serial is too slow
 
 
 @task
-def sync_png_nc_to_s3(hyd_refdes, date, flag, scope="spectrogram", local_dir=Path("./output")):
+def sync_png_nc_to_s3(
+    hyd_refdes, date, flag, scope="spectrogram", local_dir=Path("./output"), flac_root=Path("data/flac")
+):
     """sync products to S3.
 
     scope="spectrogram" uploads the .nc and .png; scope="all" adds the FLAC, which lands
@@ -44,7 +46,7 @@ def sync_png_nc_to_s3(hyd_refdes, date, flag, scope="spectrogram", local_dir=Pat
             s3_fs.put(str(png), s3_uri)
 
         if scope == "all":
-            sync_flac_to_s3(hyd_refdes, date, s3_fs, logger)
+            sync_flac_to_s3(hyd_refdes, date, s3_fs, logger, flac_root)
 
     elif "obs" in flag:
         obs_png_files = local_dir.rglob("*OBS*.png")  # recursive glob for subdirs
@@ -55,14 +57,14 @@ def sync_png_nc_to_s3(hyd_refdes, date, flag, scope="spectrogram", local_dir=Pat
                 s3_fs.put(str(fp), s3_uri)
 
 
-def sync_flac_to_s3(hyd_refdes, date, s3_fs, logger):
+def sync_flac_to_s3(hyd_refdes, date, s3_fs, logger, flac_root):
     """upload a day of FLAC to flac/YYYY/INSTRUMENT/YYYY_MM_DD/.
 
     Follows the .nc layout (hmb/YYYY/INSTRUMENT/) but adds a day level: a year of one
     instrument is ~105k files, too many to sit in a single prefix comfortably.
     """
     parsed = datetime.strptime(date, "%Y/%m/%d")
-    flac_dir = Path(flac_day_dir(Path.cwd() / "data/flac", hyd_refdes, parsed))
+    flac_dir = Path(flac_day_dir(flac_root, hyd_refdes, parsed))
     files = sorted(flac_dir.glob("*.flac"))
     if not files:
         logger.warning(f"no flac to sync in {flac_dir}")

@@ -35,7 +35,7 @@ def check_day(fs, refdes, day, flac_root, layout, mseed_root):
         return f"{mseed} mseed, no manifest" if mseed else None
 
     m = json.loads(fs.cat(manifest))
-    flac = len(fs.glob(f"{flac_dir}/*.flac"))
+    flac = len(fs.glob(f"{flac_dir}/*.flac") + fs.glob(f"{flac_dir}/addendum/*.flac"))
     problems = []
     if m["source_mseed_files"] != mseed:
         problems.append(f"manifest built from {m['source_mseed_files']} mseed, {mseed} there now")

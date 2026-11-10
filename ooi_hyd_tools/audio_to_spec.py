@@ -47,7 +47,7 @@ HYDBB_COORDS = {
 @task
 def audio_to_spec(
     start_date,
-    file_type,
+    flac_dir,
     hyd_refdes,
     apply_cals,
     freq_lims,
@@ -56,20 +56,19 @@ def audio_to_spec(
     freq_lims = tuple(freq_lims)
     start_date = start_date.replace("/", "")
 
-    gen_metadata(start_date, file_type, hyd_refdes)
+    gen_metadata(start_date, flac_dir, hyd_refdes)
 
     gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_lims)
 
 
 @task
-def gen_metadata(start_date, file_type, hyd_refdes):
+def gen_metadata(start_date, flac_dir, hyd_refdes):
     logger = select_logger()
 
     instrument = hyd_refdes[-9:]
-    date_dir = f"{start_date[:4]}_{start_date[4:6]}_{start_date[6:]}"
 
     # Audio data input specifications
-    flac_uri = f"file://{str(Path.cwd())}/data/{file_type}/{date_dir}/{instrument}"
+    flac_uri = f"file://{flac_dir}"
     logger.info(f"pbp reading audio from {flac_uri}")
     flac_prefix = instrument  # prefix for the audio files
     start_date = start_date  # start date for temporal metadata extraction (YYYYMMDD)
