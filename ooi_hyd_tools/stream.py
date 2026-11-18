@@ -15,7 +15,7 @@ upload_s3.py does; credentials come from the standard AWS env vars.
 
 Levels are counts with a fixed gain and a soft limiter, for listening - not calibrated
 pressure. Instruments differ by ~25 dB (2024-11-03 12:00 RMS: shelf -52, offshore -72, axial
--76 dBFS), so set --gain-db per hydrophone.
+-76, slope base -76 dBFS), so set --gain-db per hydrophone.
 """
 import subprocess
 import time

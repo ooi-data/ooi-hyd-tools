@@ -17,3 +17,6 @@ services:
   axial-base:
     <<: *stream
     command: --hyd-refdes RS03AXBS-LJ03A-09-HYDBBA302 --node-name ooi_axial_base --gain-db 50 --bucket s3://audio-orcasound-net
+  slope-base:
+    <<: *stream
+    command: --hyd-refdes RS01SLBS-LJ01A-09-HYDBBA102 --node-name ooi_slope_base --gain-db 50 --bucket s3://audio-orcasound-net

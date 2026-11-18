@@ -353,7 +353,7 @@ ooi-stream --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --node-name ooi_oregon_shelf
   audio's UTC and Pacific time.
 - `--start YYYY-MM-DDTHH:MM --mseed-root DIR` replays past data at real-time pace, for testing.
 
-`stream/` holds a slim image (no pbp or prefect) and a compose file running all three
+`stream/` holds a slim image (no pbp or prefect) and a compose file running all four
 hydrophones: `docker compose -f stream/docker-compose.yml up -d`, with the keys in `stream/.env`.
 
 # Hydrophone calibrations
