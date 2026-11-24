@@ -6,7 +6,7 @@ from pathlib import Path
 from prefect.deployments import run_deployment
 from datetime import datetime, timedelta, timezone
 from ooi_hyd_tools.utils import iter_dates, select_logger
-from ooi_hyd_tools.thresholds import GAP_THRESHOLD
+from ooi_hyd_tools.thresholds import FREQ_LIMS, GAP_THRESHOLD
 
 logger = select_logger()
 
@@ -57,7 +57,7 @@ class LocalRunner(Runner):
 
     def run(self, date: datetime, params: dict) -> None:
         # imported here so --runner prefect dispatch needs only prefect, not the science stack
-        from ooi_hyd_tools.mseed_to_audio import acoustic_flow_oneday
+        from ooi_hyd_tools.day_flow import acoustic_flow_oneday
 
         # local-only options stay out of params: those go to the cloud deployments
         acoustic_flow_oneday(
@@ -122,7 +122,7 @@ class PrefectRunner(Runner):
 @click.option(
     "--freq-lims",
     type=(int, int),
-    default=(10, 30_000),
+    default=FREQ_LIMS,
     show_default=True,
     help="Frequency limits for the hybrid millidecade spectrograms (min, max). Default is (10, 30,000) As of 6/2025 OOI hydrophones"
     " are recording at 64 kHz.",

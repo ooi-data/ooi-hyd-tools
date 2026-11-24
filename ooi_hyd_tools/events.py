@@ -12,7 +12,7 @@ from ooi_hyd_tools.thresholds import GAP_THRESHOLD
 
 """
 Pull a user-specified window of broadband hydrophone audio from the OOI raw data
-archive, run it through the same jitter/gap repair used in mseed_to_audio, and
+archive, run it through the same jitter/gap repair as the pipeline (repair.py), and
 write a single continuous WAV to ./output/events for listening (e.g. a nearby
 earthquake T-phase). Reuses HydrophoneDay for fetching + gap repair.
 

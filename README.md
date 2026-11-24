@@ -1,36 +1,22 @@
-# ooi-hyd-tools 
+# ooi-hyd-tools
 
-Assorted tools for processing Ocean Observatories Initiative hydrophone data. 
-For other OOI hydrophone tools see:
-
-https://github.com/Ocean-Data-Lab/ooipy
-
-https://github.com/bnestor/hydrophone_downloader
-
-The repo adapts tools from: 
-
-https://github.com/mbari-org/pbp
-
-https://github.com/ioos/soundcoop
-
-https://github.com/lifewatch/pypam
-
-## Contents
+Tools for Ocean Observatories Initiative (OOI) broadband hydrophone data: repaired FLAC from
+the mseed archive, calibrated hybrid millidecade spectrograms, event audio and a delayed live
+stream. Adapts [pbp](https://github.com/mbari-org/pbp), [soundcoop](https://github.com/ioos/soundcoop)
+and [pypam](https://github.com/lifewatch/pypam); see also [ooipy](https://github.com/Ocean-Data-Lab/ooipy)
+and [hydrophone_downloader](https://github.com/bnestor/hydrophone_downloader).
 
 | section | what it covers |
 | --- | --- |
-| [Converting mseed to flac](#how-to-convert-ooi-mseed-archives-to-flac) | the CLI, and how the gap repair, naming and bit depth work |
-| [One file at a time](#converting-one-file-at-a-time) | `mseed-to-flac`, the slim per-file converter for production ingest |
-| [Local mirror and raw data server layout](#running-from-a-local-mirror-with-flac-in-the-raw-data-server-layout) | reading mseed from a mounted archive, writing FLAC in its tree and naming |
-| [Run logs](#run-logs) | the per-day log files kept after each run |
-| [Checking a range](#checking-a-range) | finding the days in a range that need a re-run |
-| [Pipeline stages](#pipeline-stages) | what each `--flag` reads and writes |
-| [What gets written](#what-gets-written) | per-file header tags, the per-day manifest, and the cal recorded in each spectrogram |
-| [Single event audio](#how-to-extract-audio-of-a-single-event) | pulling one event rather than a whole day |
+| [Install](#install) | the base install and `[pipeline]` |
+| [Command-line tools](#command-line-tools) | every command, what it does, and a typical call |
+| [acoustic-pipeline](#acoustic-pipeline) | stages, local mirror and server layout, run logs and checks |
+| [How the repair works](#how-the-repair-works) | jitter and gap repair, file naming, bit depth |
+| [What gets written](#what-gets-written) | FLAC header tags, the per-day manifest, the cal recorded in each spectrogram |
 | [Live stream](#live-stream-to-orcasound) | delayed HLS of the broadband hydrophones for live.orcasound.net |
-| [Hydrophone calibrations](#hydrophone-calibrations) | cal specs, where the sheets come from, how one is chosen |
+| [Hydrophone calibrations](#hydrophone-calibrations) | cal specs, where the certs come from, how one is chosen |
 | [Known issues to fix](#known-issues-to-fix) | current defects, ordered by size of error on delivered products |
-| [Reference designators](#ooi-reference-designators-refdes-for-broadband-hydrophones-and-approximate-latlon) | refdes and approximate lat/lon |
+| [Broadband hydrophones](#broadband-hydrophones) | refdes, site and lat/lon |
 
 Longer notes live in [`docs/`](docs/):
 
@@ -42,109 +28,81 @@ Longer notes live in [`docs/`](docs/):
 - [**upstream-repair.md**](docs/upstream-repair.md) - what applying the jitter and gap repair at
   ingest, in the OOI ORB driver that writes the mseed, would take.
 - [**production_mseed_to_flac_conversion.md**](docs/production_mseed_to_flac_conversion.md) -
-  running `mseed-to-flac` at ingest so FLAC lands next to each mseed, and open questions for CI.
+  running `mseed-to-flac` at ingest and `day-rollup` on a schedule, so FLAC and daily
+  products land next to the mseed, and open questions for CI.
 
-# How to convert ooi mseed archives to flac
+# Install
+
 ```
 git clone https://github.com/ooi-data/ooi-hyd-tools.git
-conda create -n ooi-hyd-tools python=3.11 pip
-conda activate ooi-hyd-tools
 cd ooi-hyd-tools
+conda create -n ooi-hyd-tools python=3.11 pip && conda activate ooi-hyd-tools
 pip install -e ".[pipeline]"
 ```
 
-The base install (`pip install -e .`) carries only `mseed-to-flac`; the pipeline needs
-`[pipeline]`.
+The base install (`pip install -e .`) is obspy, numpy, soundfile and a few small libraries:
+enough for
+`mseed-to-flac`, `check-flac`, `event-audio`, `ooi-stream` and `ooi-listen` on local files.
+`[pipeline]` adds pbp, Prefect, the netCDF stack and S3 access, which `acoustic-pipeline`,
+`day-rollup` and `cal-to-nc` need.
 
-`acoustic-pipeline` converts one day or a range of archived OOI mseed to 5-minute FLAC:
+# Command-line tools
 
-```
-acoustic-pipeline \
---hyd-refdes "CE04OSBP-LJ01C-11-HYDBBA105" \
---start-date "2025/02/20" \
---end-date "2025/03/15" \
---flag audio
-```
-`--flag all` (the default) also builds hybrid millidecade spectrograms. FLAC go to
-`./data/flac`, or anywhere with `--flac-root`; spectrograms go to `./output`. The audio stage
-runs from any directory, but the spectrogram stage reads cals from `./metadata`, so run it from
-the repo root. `acoustic-pipeline --help` describes every option.
+| command | what it does | needs |
+| --- | --- | --- |
+| `acoustic-pipeline` | A day or range from the mseed archive: repaired FLAC, then calibrated spectrograms. Also low-frequency hydrophone and seismometer plots. Runs locally or on Prefect/ECS | `[pipeline]`; run from the repo root for cals |
+| `check-flac` | Lists days in a range whose FLAC or manifest is missing or out of date; exits 1 if any | base; S3 needs `[pipeline]` |
+| `mseed-to-flac` | Repairs and converts single mseed files, writing each FLAC next to its mseed. For ingest | base |
+| `day-rollup` | Rolls up each day of FLAC, addenda included, into a manifest, `.nc` and `.png` next to the FLAC. Rebuilds only days whose inputs changed. For a timer | `[pipeline]` |
+| `event-audio` | A time window as one repaired WAV in `./output/events`, optionally filtered and sped up for listening | base |
+| `cal-to-nc` | Builds calibration netCDF from the YAML specs, and checks the committed files still match | `[pipeline]` |
+| `ooi-stream` | Plays a hydrophone as Orcasound-style HLS, a fixed delay behind real time | base, ffmpeg; `--bucket` needs `[pipeline]` |
+| `ooi-listen` | Plays a local `ooi-stream` with the audio's UTC and Pacific time | base, ffplay |
 
-### Converting one file at a time
+Typical calls; `<command> --help` lists every option.
 
-`mseed-to-flac` repairs and converts single mseed files, writing each FLAC next to its mseed
-with the server's naming. It needs only the base install, for running at ingest as each file
-closes; output matches the day pipeline's. See
-[docs/production_mseed_to_flac_conversion.md](docs/production_mseed_to_flac_conversion.md).
+```bash
+# archive -> FLAC (./data/flac) and spectrograms (./output); run from the repo root
+acoustic-pipeline --hyd-refdes CE04OSBP-LJ01C-11-HYDBBA105 --start-date 2025/02/20 --end-date 2025/03/15
+#   --flag audio|spectrogram|all|low_freq|obs (default all)   --s3-sync spectrogram|all
+#   --runner prefect (dispatch to ECS)   --mseed-root DIR  --flac-root DIR  --flac-layout ooi
 
-```
-mseed-to-flac --refdes CE02SHBP-LJ01D-11-HYDBBA106 2026/11/14/*.mseed 2026/11/14/addendum/*.mseed
-```
-
-### Running from a local mirror, with FLAC in the raw data server layout
-
-On a machine with the raw archive mounted, `--mseed-root` reads the broadband mseed from disk
-instead of the OOI raw data server, and `--flac-layout ooi` writes FLAC in the web server's
-tree and naming, addenda in `addendum/` included, so a day can be copied in alongside its
-mseed. `--flac-root` picks the folder the tree is built under. Each works without the others.
-
-```
-acoustic-pipeline \
---hyd-refdes "CE02SHBP-LJ01D-11-HYDBBA106" \
---start-date "2024/11/03" \
---mseed-root ~/ooi/san_data \
---flac-layout ooi \
---flac-root /data/hydbb_flac \
---flag audio
-# -> /data/hydbb_flac/CE02SHBP/LJ01D/HYDBBA106/2024/11/03/[addendum/]OO-HYEA2--YDH-<start>.flac
-```
-
-The mirror must be laid out as `ROOT/<refdes>/YYYY/MM/DD/`, with an optional `addendum/` in
-each day, and keep the archive's filenames, which end in the file's start
-(`OO-HYEA2--YDH-<start>.mseed`, `YDH.` before 2016) - each file's nominal start is read from
-its name. Anything else in a day directory, such as the per-segment `.png`, is ignored.
-Repaired traces are sample-identical to a remote run of the same files.
-
-- A day with no mseed is skipped, as on the remote archive. A missing `ROOT/<refdes>` raises
-  instead, since an unmounted share would otherwise look like a run of empty days.
-- `--mseed-root` only feeds the broadband `audio` and `all` stages, and is refused with
-  `--runner prefect`, which can't see a local mount.
-- `--flac-layout ooi` names carry the true start to the microsecond, so they may differ
-  from the source mseed's (an addendum labelled `14:45:00` whose data starts at `14:45:31.167`
-  is named for 14:45:31.167). The day's manifest sits in the day folder and lists addenda as
-  `addendum/<name>`. pbp can't parse these names or the split, so the layout needs
-  `--flag audio` and the local runner, and is refused with `--s3-sync all`. The default pbp
-  layout keeps every day in one folder, so spectrograms are unaffected.
-- `--flac-root` is refused with `--runner prefect`, which writes to its own disk.
-
-### Run logs
-
-Each run also appends its log to `./logs/INSTRUMENT/INSTRUMENT_YYYYMMDD.log`, including the
-traceback if it fails, so reruns of a day stack up in one file. `grep -r "WARNING\|ERROR\|ISSUE" logs/`
-lists the days worth a look. An mseed that won't parse (0-byte or corrupt) is skipped with an
-ISSUE rather than failing the day.
-
-### Checking a range
-
-A local `audio` or `all` run carries on past a day that fails, then checks every day in the
-range (under its `--flac-root` and `--flac-layout`) and exits nonzero listing the days to re-run. `check-flac` runs the same check on its
-own, after a cloud backfill or on FLAC written elsewhere:
-
-```
+# days in a range that need a re-run
 check-flac --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --start-date 2016/01/01 --end-date 2026/09/30 \
-  --flac-root ~/hydbb_flac --mseed-root ~/ooi/san_data
+    --flac-root ~/hydbb_flac --mseed-root ~/ooi/san_data
+
+# production: each file at ingest, then each day's products on a timer
+mseed-to-flac --refdes CE02SHBP-LJ01D-11-HYDBBA106 /files/CE02SHBP/LJ01D/HYDBBA106/2026/11/14/*.mseed
+day-rollup --root /files --refdes CE02SHBP-LJ01D-11-HYDBBA106 --lookback-days 14
+
+# one event for listening: the M5.5 Blanco Fracture Zone earthquake at Slope Base
+event-audio --refdes RS01SLBS-LJ01A-09-HYDBBA102 --start 2026-06-29T11:35:44 --end 2026-06-29T11:42:04 \
+    --bandpass 2 1000 --normalize --speed 2 --fade 1.0
+
+# calibration specs -> netCDF
+cal-to-nc template > metadata/cal_specs/{refdes}.yaml   # scaffold, fill in from the cert PDF
+cal-to-nc build metadata/cal_specs/*.yaml --plot        # write the .nc plus a QA plot
+cal-to-nc check metadata/cal_specs/*.yaml               # CI: committed .nc still match specs
+cal-to-nc from-nc {refdes}                              # backfill a spec from existing .nc
+
+# live stream, written locally, then played back
+ooi-stream --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --node-name ooi_oregon_shelf --gain-db 25
+ooi-listen ooi_oregon_shelf
 ```
 
-A day with mseed is flagged when it has no manifest (the run failed or was killed), when its
-manifest was built from a different number of mseed than are there now (late addenda), or
-when the FLAC on disk, `addendum/` included, don't match the manifest's count. Only listings
-and manifests are read.
-`--flac-root s3://ooi-hmb-data/flac` checks the S3 delivery; `--flac-layout ooi` an ooi tree.
+- `mseed-to-flac` and `day-rollup` give the same FLAC and spectrograms as `acoustic-pipeline`
+  on the same mseed. `day-rollup` reads cals from `--meta-dir` (default `./metadata`; the
+  image sets `OOI_HYD_META_DIR`). Running both in production:
+  [docs/production_mseed_to_flac_conversion.md](docs/production_mseed_to_flac_conversion.md).
+- `event-audio`: `--bandpass LOW HIGH` isolates the event, `--speed` rewrites the sample rate so
+  rumble shifts up, `--normalize` or `--gain-db` raise a quiet clip, `--fade SEC` tapers both ends.
 
-### Pipeline stages
+# acoustic-pipeline
 
-`--flag` picks which stage runs. Broadband spectrograms are built from FLAC on disk, not
-from mseed, so the two broadband stages can be run separately:
+### Stages
+
+`--flag` picks the stage. Broadband spectrograms are built from FLAC on disk, not from mseed,
+so the two broadband stages can run separately:
 
 | `--flag` | reads | writes |
 | --- | --- | --- |
@@ -154,17 +112,56 @@ from mseed, so the two broadband stages can be run separately:
 | `low_freq` | Earthscope, via `ooipy` | `./output/INSTRUMENT_YYYYMMDD.png` |
 | `obs` | Earthscope FDSN web service | `./output/SITE/` seismometer plots |
 
-`FLAC_ROOT` is `--flac-root`, default `./data/flac`.
+`FLAC_ROOT` is `--flac-root`, default `./data/flac`. The spectrogram stage reads cals from
+`./metadata`, so run it from the repo root. `audio` and `all` always rebuild from the archive.
+To redo only a spectrogram (the usual case when pbp failed but the audio is fine), run
+`--flag spectrogram`: it reuses the FLAC, never touches the raw data server, and raises
+`FileNotFoundError` if the day's manifest is missing. `low_freq` and `obs` pull from
+Earthscope and never read FLAC.
 
-`audio` and `all` always rebuild from the archive; neither skips a day that is already on
-disk. To redo only the spectrogram - the usual case when pbp failed but the audio is fine -
-run `--flag spectrogram`, which reuses the FLAC and never touches the raw data server. It
-raises `FileNotFoundError` if the day's manifest is missing.
+### Local mirror and server layout
 
-`low_freq` and `obs` are separate paths: both pull from Earthscope rather than the raw
-archive and never read FLAC.
+On a machine with the raw archive mounted, `--mseed-root` reads mseed from disk instead of the
+raw data server. `--flac-layout ooi` writes FLAC in the server's tree and naming, addenda in
+`addendum/`, so a day can be copied in alongside its mseed; `--flac-root` picks where the tree
+is built. Each works without the others.
 
-## How the repair works
+```
+acoustic-pipeline --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --start-date 2024/11/03 \
+    --mseed-root ~/ooi/san_data --flac-layout ooi --flac-root /data/hydbb_flac --flag audio
+# -> /data/hydbb_flac/CE02SHBP/LJ01D/HYDBBA106/2024/11/03/[addendum/]OO-HYEA2--YDH-<start>.flac
+```
+
+- **Mirror layout:** `ROOT/<refdes>/YYYY/MM/DD/[addendum/]`, keeping the archive's filenames,
+  which end in each file's start (`YDH.` before 2016). Anything else in a day folder is
+  ignored. Repaired traces are sample-identical to a remote run.
+- **Missing data:** a day with no mseed is skipped. A missing `ROOT/<refdes>` raises, since an
+  unmounted share would otherwise look like a run of empty days.
+- **ooi layout names** carry the true start to the microsecond, so they may differ from the
+  mseed's: an addendum labelled `14:45:00` whose data starts at `14:45:31.167` is named for
+  14:45:31.167. The manifest sits in the day folder and lists addenda as `addendum/<name>`.
+  pbp can't read these names or the split; `day-rollup` builds spectrograms from this layout.
+- **Restrictions:** `--mseed-root` and `--flac-root` need `--runner local`, and `--mseed-root`
+  feeds only `audio` and `all`. `--flac-layout ooi` needs `--flag audio` and is refused with
+  `--s3-sync all`.
+
+### Run logs and checks
+
+Each run appends its log to `./logs/INSTRUMENT/INSTRUMENT_YYYYMMDD.log`, traceback included, so
+reruns of a day stack up in one file; `grep -r "WARNING\|ERROR\|ISSUE" logs/` lists the days
+worth a look. An mseed that won't parse (0-byte or corrupt) is skipped with an ISSUE rather
+than failing the day.
+
+A local `audio` or `all` run carries on past a failed day, then checks every day in the range
+and exits nonzero listing the days to re-run. `check-flac` runs the same check on its own: a
+day with mseed is flagged when it has no manifest (the run failed or was killed), when its
+manifest counted a different number of mseed than are there now (late addenda), or when the
+FLAC on disk, `addendum/` included, don't match the manifest. It reads only listings and
+manifests. `--flac-root s3://ooi-hmb-data/flac` checks the S3 delivery; `--flac-layout ooi` a
+server-layout tree.
+
+# How the repair works
+
 ### Jitter and gap repair
 
 The DDS mislabels when each burst of samples arrived - by anywhere from a fraction of a
@@ -195,23 +192,6 @@ flowchart TD
     FLAG --> OUT
 ```
 
-The repair discards nothing: a file that is short still yields audio, and any missing time
-is reported rather than silently dropped. A gap counts as a real break only if it is
-longer than `--gap-threshold` (OEK `TrHld2`, default 0.023 s) **and** longer than the
-file's own measured label noise - an overlap cannot be real, since one ADC cannot record
-an instant twice, so the largest overlap in a file measures how far that file's timestamps
-lie (observed 10-250 ms depending on instrument and era). Each file therefore sets its own
-threshold, with no per-instrument or per-era tuning.
-
-### File naming and start times
-
-Placement comes from the CI filename, not the traces: a first-trace starttime within the
-file's own label noise snaps to the filename, and only a label demonstrably further off wins
-- which is how a stretch following a real break gets named, and how the degenerate-timestamp
-case below scatters output. Interior trace timestamps only ever locate breaks; they are
-never read as absolute time.
-
-
 What each case looks like on the clock. Every `|` is a boundary where the timestamps claim
 one piece ends and the next begins - those boundaries are wrong, and the recording across
 them is continuous.
@@ -234,26 +214,41 @@ CASE C  TOO MUCH    [==|==|==|==|==|==|==|==|==|==|==|==|==|=================]
                     kept in full, but flagged for review
 ```
 
+The repair discards nothing: a short file still yields audio, and missing time is reported
+rather than silently dropped. A gap counts as a real break only if it is longer than
+`--gap-threshold` (OEK `TrHld2`, default 0.023 s) **and** longer than the file's own measured
+label noise. An overlap can't be real, since one ADC can't record an instant twice, so the
+largest overlap in a file measures how far its timestamps lie (10-250 ms observed, by
+instrument and era). Each file sets its own threshold, with no per-instrument or per-era
+tuning. Every input comes from the file itself, so a file repaired alone (`mseed-to-flac`)
+matches the same file repaired as part of a day.
 
-Files are named `{instrument}_{YYYYMMDD}_{HHMMSS}` at whole-second resolution, because that
-is the finest mbari-pbp can parse - `meta_gen/utils.py` matches `{prefix}_YYYYMMDD_HHMMSS.`
-and nothing after, so any sub-second suffix makes the file invisible to the spectrogram
-stage. A recording that resumes mid-second therefore loses up to 1 s in its name; the exact
-start is written into the file header instead (`date` and `comment`), where nothing
-truncates it.
+### File naming and start times
+
+Placement comes from the CI filename, not the traces: a first-trace starttime within the
+file's own label noise snaps to the filename, and only a label demonstrably further off wins.
+That is how a stretch following a real break gets named, and how the degenerate-timestamp case
+in Known issues scatters output. Interior trace timestamps only ever locate breaks.
+
+The default layout names files `{instrument}_{YYYYMMDD}_{HHMMSS}`, whole seconds, because that
+is all pbp parses (`meta_gen/utils.py` matches `{prefix}_YYYYMMDD_HHMMSS.` and nothing after).
+A recording that resumes mid-second loses up to 1 s in its name, so the exact start goes in
+the file header (`date` and `comment`). The ooi layout names to the microsecond.
 
 ### FLAC bit depth
 
 OOI mseed carries 24-bit ADC counts right-justified in int32 (the integer *is* the count,
 full scale 2^23); libsndfile's int32 API is left-justified (full scale 2^31). Writing counts
 straight to `PCM_24` therefore stored `count >> 8`. Since v1.7 the writer shifts left by 8
-first so the true count lands in the 24-bit word.
-Full walkthrough, with the numbers and where the +128.9 dB offset came from: [docs/24-bit-counts.md](docs/24-bit-counts.md).
+first so the true count lands in the 24-bit word. The full walkthrough, with the numbers and
+where the +128.9 dB offset came from, is in [docs/24-bit-counts.md](docs/24-bit-counts.md).
 
-## What gets written
+# What gets written
+
 ### Audio file metadata
 
-Three fields are set at write time (`_write_audio`) as FLAC Vorbis comments:
+`write_audio` in [mseed_to_flac.py](ooi_hyd_tools/mseed_to_flac.py) sets three FLAC Vorbis
+comments:
 
 | Written as | Vorbis comment | Holds |
 | --- | --- | --- |
@@ -261,24 +256,18 @@ Three fields are set at write time (`_write_audio`) as FLAC Vorbis comments:
 | `software` | `SOFTWARE=` | `ooi-hyd-tools` + package version; libsndfile appends its own |
 | `comment` | `COMMENT=` | `refdes=` `start=` `npts=` `sampling_rate=` `counts=` |
 
-As it appears in a real file:
-
 ```
 date=2026-08-19T00:00:00.014000Z
 software=ooi-hyd-tools 1.7.0 (libsndfile-1.2.0)
 comment=refdes=CE04OSBP-LJ01C-11-HYDBBA105 start=2026-08-19T00:00:00.014000Z npts=19200000 sampling_rate=64000 counts=int24_left_justified
 ```
 
-Reading it back:
-
-```bash
-python -c "import soundfile as sf; f=sf.SoundFile('x.flac'); print(f.date); print(f.comment)"
-metaflac --list --block-type=VORBIS_COMMENT x.flac
-```
+Read them back with `soundfile` (`sf.SoundFile('x.flac').date`, `.comment`) or
+`metaflac --list --block-type=VORBIS_COMMENT x.flac`.
 
 ### Per-day manifest
 
-Each day's FLAC directory also gets `{instrument}_{YYYYMMDD}_manifest.json`, uploaded after the
+Each day's FLAC folder also gets `{instrument}_{YYYYMMDD}_manifest.json`, written after the
 audio so its presence means the day finished:
 
 ```json
@@ -293,24 +282,28 @@ audio so its presence means the day finished:
   "files_written": 286,
   "seconds_written": 85799.844,
   "day_coverage_pct": 99.31,
-  "collisions": [{"stamp": "20260819_014500", "kept_s": 299.84,
+  "collisions": [{"stamp": "HYDBBA105_20260819_014500.flac", "kept_s": 299.84,
                   "dropped_s": 0.06, "dropped_start": "2026-08-19T01:45:00.098000Z"}],
   "files": [{"name": "HYDBBA105_20260819_000000.flac",
              "start": "2026-08-19T00:00:00.014000Z", "npts": 19200000, "sampling_rate": 64000}]
 }
 ```
 
-`files` carries the sub-second starts that filenames round away - one read instead of 288 headers.
-`sampling_rates` lists every rate in the day; a few days mix rates, so each file has its own.
-`day_coverage_pct` separates a short recording day from a failed upload. `collisions` records
-pieces dropped because two started in the same second (see Known issues); that audio is unique
-and is written nowhere else.
+- `files` carries the sub-second starts that filenames round away: one read instead of 288
+  headers.
+- `sampling_rates` lists every rate in the day; a few days mix rates, so each file has its own.
+- `day_coverage_pct` separates a short recording day from a failed upload.
+- `collisions` records pieces dropped because two started in the same second (see Known
+  issues). That audio is unique and is written nowhere else.
+- `day-rollup` writes the same fields from the FLAC on disk, with `gap_threshold_s` null,
+  plus `generated`, `fingerprint` (what the products were built from) and `products` (the
+  `.nc` and `.png` names, or the error). Its `collisions` are pieces the spectrogram left out.
 
 ### Spectrogram calibration attributes
 
 Each spectrogram `.nc` records the cal it was built with as global attributes, read from the
-cal file `find_cal_file` selected, so a later change to the deployment lookup or a cal file
-is visible after the fact:
+cal file `find_cal_file` selected, so a later change to the deployment lookup or a cal file is
+visible after the fact:
 
 | attribute | holds |
 | --- | --- |
@@ -320,86 +313,82 @@ is visible after the fact:
 | `calibration_date` | date of the vendor cert |
 | `calibration_source_pdf` | the cert PDF the values were transcribed from |
 | `calibration_placeholder` | present only for a stand-in cal, with the reason (see Known issues) |
-| `calibration_lf_sensitivity` | the cert's 26 Hz spot value, present only once it is transcribed for that deployment |
-| `calibration_lf_corner_hz` | the high-pass corner modelled below 26 Hz, present with `calibration_lf_sensitivity` |
+| `calibration_lf_sensitivity` | the cert's 26 Hz value, which anchors the modelled band below the cert table |
+| `calibration_lf_corner_hz` | the roll-off corner of that model |
 
-`instrument` is also set from the cal file's model (`icListen model SB2-ETH` or `SB35-ETH`).
-The models differ by deployment and `globalAttributes.yaml` is shared by every product, so the
-static value is just `icListen`; that is what a product built with `--apply-cals false` keeps.
-Products made before October 2026 do not carry these attributes, and their `instrument` says
-SB35-ETH regardless of deployment.
-
-# How to extract audio of a single event
-
-Use the `event-audio` command to pull a time window of broadband audio, run it through the same jitter/gap repair as the pipeline, and write a single continuous WAV to `./output/events` for listening.
-
-For example, to extract the M5.5 Blanco Fracture Zone earthquake recorded 2026/06/29 at Slope Base Seafloor (the event runs 11:35:44–11:42:04 UTC):
-
-```
-event-audio \
---refdes "RS01SLBS-LJ01A-09-HYDBBA102" \
---start "2026-06-29T11:35:44" \
---end "2026-06-29T11:42:04" \
---bandpass 2 1000 \
---normalize \
---speed 2 \
---fade 1.0
-```
-
-`--speed` rewrites the sample rate, `--bandpass LOW HIGH` isolates the event, `--normalize` boosts a quiet clip, and `--fade SEC` tapers both ends. `event-audio --help` lists all arguments.
+`instrument` is set from the cal file's model (`icListen model SB2-ETH` or `SB35-ETH`); with
+`--apply-cals false` it keeps the static `icListen`. Products made before October 2026 carry
+none of these attributes, and their `instrument` says SB35-ETH regardless of deployment.
 
 # Live stream to Orcasound
 
-`ooi-stream` plays a broadband hydrophone as [Orcasound](https://github.com/orcasound/orcanode)-style
-HLS (10 s AAC segments under `<node_name>/hls/<epoch>/`, plus `latest.txt`), a fixed delay
-behind real time so the mseed has reached the raw data server:
+`ooi-stream` writes [orcanode](https://github.com/orcasound/orcanode)-style HLS: 10 s AAC
+segments under `<node_name>/hls/<epoch>/`, plus `latest.txt`.
 
-```
-ooi-stream --hyd-refdes CE02SHBP-LJ01D-11-HYDBBA106 --node-name ooi_oregon_shelf --gain-db 25
-```
+- **Delay:** plays `--delay-minutes` (default 6 h) behind real time so the mseed has reached the
+  raw data server. A file still missing when its turn comes streams as silence; late addendum
+  data can't be added back into a live stream.
+- **Repair:** each 5-min file is repaired as in the pipeline and laid on a silent buffer, so
+  gaps stay gaps.
+- **Epoch:** the data time of the first slot, not wall time, so an archive built from it dates
+  the audio correctly.
+- **Levels:** counts with a fixed `--gain-db` and a soft limiter, for listening, not calibrated
+  pressure. Instruments differ by ~25 dB, so set the gain per hydrophone.
+- **Output:** `--bucket s3://audio-orcasound-net` uploads as orcanode does, with Orcasound's AWS
+  keys; without it, files stay in `./data/stream` for `ooi-listen`. `--start YYYY-MM-DDTHH:MM
+  --mseed-root DIR` replays past data at real-time pace, for testing.
 
-- Each 5-min file is repaired as in the pipeline (`repair.py`) and laid on a silent buffer, so
-  gaps stay gaps. A file not on the server when its turn comes (`--delay-minutes`, default 6 h)
-  streams as silence; late addendum data can't be added back into a live stream.
-- The epoch is the data time of the first slot, not wall time, so an archive built from it
-  dates the audio correctly.
-- Levels are counts with a fixed `--gain-db` and a soft limiter, for listening, not
-  calibrated pressure. Instruments differ by ~25 dB, so set the gain per hydrophone.
-- `--bucket s3://audio-orcasound-net` uploads as orcanode does, with Orcasound's AWS keys.
-  Without it, output stays in `./data/stream`; `ooi-listen <node_name>` plays it with the
-  audio's UTC and Pacific time.
-- `--start YYYY-MM-DDTHH:MM --mseed-root DIR` replays past data at real-time pace, for testing.
-
-`stream/` holds a slim image (no pbp or prefect) and a compose file running all four
-hydrophones: `docker compose -f stream/docker-compose.yml up -d`, with the keys in `stream/.env`.
+`stream/` holds a slim image (no pbp or Prefect) and a compose file running four hydrophones:
+`docker compose -f stream/docker-compose.yml up -d`, with the keys in `stream/.env`.
 
 # Hydrophone calibrations
 
-Cal files are netCDF in `metadata/cals`, one per instrument per deployment (`{refdes}_{deployment}.nc`), holding the manufacturer values in dB re 1 V/uPa. pbp reads `sensitivity` - the 0/90 average for directional cals, with `sensitivity_0`/`sensitivity_90` kept as the record. Volts-to-counts happens in code: pbp reads the 24-bit FLAC normalized to full scale and `audio_to_spec.py` sets `VOLTAGE_MULTIPLIER = 3` (the ADC's 3 V full scale), so sheet values apply unmodified. This retired the `rca_correction_cals` copies with a baked-in +128.9 dB offset ([docs/24-bit-counts.md](docs/24-bit-counts.md)).
+Cal files are netCDF in `metadata/cals`, one per instrument per deployment
+(`{refdes}_{deployment}.nc`), holding the manufacturer values in dB re 1 V/uPa. pbp reads
+`sensitivity`: the 0/90 average for directional cals, with `sensitivity_0`/`sensitivity_90`
+kept as the record. Volts-to-counts happens in code: pbp reads the 24-bit FLAC normalized to
+full scale and `audio_to_spec.py` sets `VOLTAGE_MULTIPLIER = 3` (the ADC's 3 V full scale), so
+sheet values apply unmodified. This retired the `rca_correction_cals` copies with a baked-in
++128.9 dB offset ([docs/24-bit-counts.md](docs/24-bit-counts.md)).
+
+The seafloor instruments (HYDBBA102, 105, 106, 302) have cals from deployment 1; of the
+mooring-mounted ones, HYDBBA303 from deployment 10 and HYDBBA103 from deployment 12.
 
 ### Calibration yamls are the source of truth
 
-One YAML spec per instrument in `metadata/cal_specs/` holds every deployment, transcribed by hand from the cert PDF:
+One YAML spec per instrument in `metadata/cal_specs/` holds every deployment, transcribed by
+hand from the cert PDF. Edit a spec, then rerun `cal-to-nc build`; CI runs `cal-to-nc check`
+(see [Command-line tools](#command-line-tools)).
 
-```
-cal-to-nc template > metadata/cal_specs/{refdes}.yaml   # scaffold, fill in from the PDF
-cal-to-nc build metadata/cal_specs/*.yaml --plot        # write the .nc plus a QA plot
-cal-to-nc check metadata/cal_specs/*.yaml               # CI: committed .nc still match specs
-cal-to-nc from-nc {refdes}                              # backfill a spec from existing .nc
-```
-
-- Each deployment block holds a single `sens` curve or directional `sens0`/`sens90`, in kHz (or `freq_units: Hz`), **copied exactly as printed** - no 0 Hz entry.
-- `lf_sens` is the cert's "Sensitivity @ 26 Hz", printed beside the table. `build` uses it to model the band below the table: a first-order high-pass at `lf_corner_hz` (default 10 Hz, interim) through the 26 Hz value, blended into the first table point and sampled densely enough for pbp's interpolation to follow. Without it the band is a flat copy of the first table point, and `build` says so.
-- Validation rejects length mismatches, non-ascending frequencies and values outside -220 to -120 dB; `build` warns when mean sensitivity jumps more than 6 dB between deployments.
-- `notebooks/11_calibration_curve_plot.ipynb` plots every curve as pbp applies it; `plot_cal(refdes, dep, preview_lf_sens=...)` previews a value before it goes in a spec.
+- Each deployment block holds a single `sens` curve or directional `sens0`/`sens90`, in kHz
+  (or `freq_units: Hz`), **copied exactly as printed** - no 0 Hz entry.
+- `lf_sens` is the cert's "Sensitivity @ 26 Hz", printed beside the table. `build` uses it to
+  model the band below the table: a first-order high-pass at `lf_corner_hz` (default 10 Hz)
+  through the 26 Hz value, blended into the first table point and sampled densely enough for
+  pbp's interpolation to follow. Without it the band is a flat copy of the first table point,
+  and `build` says so.
+- Validation rejects length mismatches, non-ascending frequencies and values outside -220 to
+  -120 dB; `build` warns when mean sensitivity jumps more than 6 dB between deployments.
+- `notebooks/11_calibration_curve_plot.ipynb` plots every curve as pbp applies it;
+  `plot_cal(refdes, dep, preview_lf_sens=...)` previews a value before it goes in a spec.
 
 ### Where the PDFs come from
 
-[calibrationFiles/HYDBBA](https://github.com/OOI-CabledArray/calibrationFiles/tree/master/HYDBBA), named `{asset_id}__{YYYYMMDD}.pdf` to match each spec's `asset_id` and `cal_date`; `OOI-CabledArray/deployments` (`HYDBBA_deployments.csv`) maps each deployment to its cert. Many are scans that GitHub's viewer shows blank - download one before concluding it holds no calibration.
+[calibrationFiles/HYDBBA](https://github.com/OOI-CabledArray/calibrationFiles/tree/master/HYDBBA),
+named `{asset_id}__{YYYYMMDD}.pdf` to match each spec's `asset_id` and `cal_date`;
+`OOI-CabledArray/deployments` (`HYDBBA_deployments.csv`) maps each deployment to its cert. Many
+are scans that GitHub's viewer shows blank - download one before concluding it holds no
+calibration.
 
 ### How a cal file is selected
 
-`find_cal_file()` in [audio_to_spec.py](ooi_hyd_tools/audio_to_spec.py) reads the deployment table live from OOI asset management (`deployment/{node}_Deploy.csv`, `{node}` = first 8 characters of the refdes). pbp applies one sensitivity per day, so the day takes the cal of the deployment covering most of it, with a warning on turnover days. A day with no deployment, or a missing cal file, raises rather than producing uncalibrated output; `--apply-cals false` skips calibration. Built cal files record `source_spec`, `source_pdf`, the `lf_*` values, and `placeholder` for stand-ins, which `find_cal_file` also logs at run time.
+`find_cal_file()` in [audio_to_spec.py](ooi_hyd_tools/audio_to_spec.py) reads the deployment
+table live from OOI asset management (`deployment/{node}_Deploy.csv`, `{node}` = first 8
+characters of the refdes). pbp applies one sensitivity per day, so the day takes the cal of the
+deployment covering most of it, with a warning on turnover days. A day with no deployment, or a
+missing cal file, raises rather than producing uncalibrated output; `--apply-cals false` skips
+calibration. Built cal files record `source_spec`, `source_pdf`, the `lf_*` values, and
+`placeholder` for stand-ins, which `find_cal_file` also logs at run time.
 
 # Known issues to fix
 
@@ -415,27 +404,23 @@ Ordered by size of the error on delivered spectrograms.
 | Step change | all instruments, >12 kHz | The v1.7 bit-depth fix removed **+0.96 dB at 20-27 kHz** (+0.45 at 12-20 kHz). Within daily variability, but a step in multi-year records; note reprocess dates for trend work |
 | Placeholder | `HYDBBA105` deps 2, 4 and 10 | **True vendor cals missing.** Dep 10's doc is a pressure-test certificate, so it uses the prior cal; deps 2 and 4 have only plot-only certs before them, so they use the next later cal. Each carries a `placeholder` reason |
 | No cal | `HYDBBA303` deps 1-9 (2014-2024), `HYDBBA103` deps 1-11 (2014-2025) | Not transcribed, so spectrograms raise `FileNotFoundError` for about ten years of each. Certs exist in calibrationFiles. **Deprioritised**: both are mooring-mounted |
-| Collision loss | seafloor instruments; `HYDBBA106` 419 of 1,902 days | Two pieces starting in the same second can't both get a whole-second name; the guard keeps the longer and logs an ISSUE. The dropped piece is **unique audio**: ~1.4 h across `HYDBBA106`'s archive, but **about a third of the day** on days CI split into ~1,600 files (2019-12-08, 2022-11-29). `--flac-layout ooi` names files to the microsecond and keeps both; the default pbp layout still drops one |
+| Collision loss | seafloor instruments; `HYDBBA106` 419 of 1,902 days | Two pieces starting in the same second can't both get a whole-second name; the guard keeps the longer and logs an ISSUE. The dropped piece is **unique audio**: ~1.4 h across `HYDBBA106`'s archive, but **about a third of the day** on days CI split into ~1,600 files (2019-12-08, 2022-11-29). `--flac-layout ooi` and `mseed-to-flac` name files to the microsecond and keep both; the pbp layout, and so every spectrogram, still drops one |
 | Mixed rates | `HYDBBA106` 2024-08-20 (6.4 kHz addenda), 2025-06-24 to 06-28 (64/128/256 kHz) | FLAC headers and manifests (from v1.8.2) carry each file's rate. Whether pbp handles mixed rates within a day is **unchecked**, so treat those days' spectrograms as suspect |
 | Junk stub files | seafloor instruments | Stubs straddling a file boundary round to their own second and survive as 64-sample FLACs - **152** on `HYDBBA102`'s 622-file 2016-07-20, **366** across `HYDBBA106`'s archive. Acoustically harmless; a minimum-duration floor would drop them |
 | Duplicated packets | `HYDBBA105`, `HYDBBA302` 2023-06-15 17:25-17:35; extent unknown | CASE C (more samples than 5 min holds) on both instruments in the same three windows with matching sizes, pointing to duplicated packets shore-side. Audio is kept and flagged, so six FLACs run slightly over 300 s: **suspect for sample-accurate work**. `HYDBBA106`'s full archive has one (2026-10-25); the other instruments have **not been swept** |
 | Degenerate timestamps | `HYDBBA102` 2023-06-15; extent unknown | Every trace in a file shares one timestamp, so naming from the first trace **scatters output and fragments the spectrogram**; the audio itself is correct. Upstream only began per-trace starttimes in Sep-Oct 2023, so earlier data may be affected. Fix (name from the filename when labels span less time than the audio) not implemented; **not surveyed** |
 
-Re-run `cal-to-nc build` after editing a spec. The seafloor instruments (HYDBBA102, 105, 106, 302) have cals from deployment 1; of the mooring-mounted ones, HYDBBA303 from deployment 10 and HYDBBA103 from deployment 12.
+# Broadband hydrophones
 
-# OOI reference designators (refdes) for broadband hydrophones and approximate lat/lon:
+| refdes | site | lat, lon (approx.) |
+| --- | --- | --- |
+| CE02SHBP-LJ01D-11-HYDBBA106 | Oregon Shelf | 44.63721, -124.30564 |
+| CE04OSBP-LJ01C-11-HYDBBA105 | Oregon Offshore | 44.36933, -124.95347 |
+| RS01SLBS-LJ01A-09-HYDBBA102 | Slope Base Seafloor | 44.51505, -125.39002 |
+| RS01SBPS-PC01A-08-HYDBBA103 | Slope Base Platform | 44.51516, -125.38990 |
+| RS03AXBS-LJ03A-09-HYDBBA302 | Axial Base Seafloor | 45.81676, -129.75426 |
+| RS03AXPS-PC03A-08-HYDBBA303 | Axial Base Platform | 45.81671, -129.75405 |
 
-`"CE02SHBP-LJ01D-11-HYDBBA106": (44.63721, -124.30564), "Oregon Shelf"`
-
-`"CE04OSBP-LJ01C-11-HYDBBA105": (44.36933, -124.95347), "Oregon Offshore"`
-
-`"RS01SBPS-PC01A-08-HYDBBA103": (44.51516, -125.3899), "Slope Base Platform"`
-
-`"RS01SLBS-LJ01A-09-HYDBBA102": (44.51505, -125.39002), "Slope Base Seafloor"`
-
-`"RS03AXBS-LJ03A-09-HYDBBA302": (45.81676, -129.75426), "Axial Base Seafloor"`
-
-`"RS03AXPS-PC03A-08-HYDBBA303": (45.81671, -129.75405), "Axial Base Platform"`
-
-
-Interactive map of assets at https://app.interactiveoceans.washington.edu/map
+The code reads these, and the low-frequency hydrophones `low_freq` plots, from
+[instruments.py](ooi_hyd_tools/instruments.py). Interactive map of assets at
+https://app.interactiveoceans.washington.edu/map

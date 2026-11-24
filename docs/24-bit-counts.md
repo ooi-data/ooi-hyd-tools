@@ -8,7 +8,7 @@ offset. This note follows one sample end to end, shows what the bug did to it, a
 what the one-line fix untangles.
 
 The fix itself is `INT24_SHIFT` in
-[`ooi_hyd_tools/mseed_to_audio.py`](../ooi_hyd_tools/mseed_to_audio.py).
+[`ooi_hyd_tools/mseed_to_flac.py`](../ooi_hyd_tools/mseed_to_flac.py).
 
 ## The life of one sample
 
@@ -304,7 +304,7 @@ every instrument-day tested - the two routes really are the same calculation.
 
 ---
 
-`INT24_SHIFT` in [`ooi_hyd_tools/mseed_to_audio.py`](../ooi_hyd_tools/mseed_to_audio.py) ·
+`INT24_SHIFT` in [`ooi_hyd_tools/mseed_to_flac.py`](../ooi_hyd_tools/mseed_to_flac.py) ·
 `VOLTAGE_MULTIPLIER` in [`ooi_hyd_tools/audio_to_spec.py`](../ooi_hyd_tools/audio_to_spec.py)
 
 Sample statistics from `RS01SLBS-LJ01A-09-HYDBBA102`, 2026-08-19T00:00:00Z, 19,200,000 samples.

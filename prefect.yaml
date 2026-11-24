@@ -17,7 +17,7 @@ pull:
 deployments:
 # pipeline.py sets cpu/memory per run from config/config.yaml and config/obs_config.yaml
 - name: hydbb_pipeline
-  entrypoint: ./ooi_hyd_tools/mseed_to_audio.py:acoustic_flow_oneday
+  entrypoint: ./ooi_hyd_tools/day_flow.py:acoustic_flow_oneday
   parameters: {}
   work_pool:
     name: hydrophone-pool

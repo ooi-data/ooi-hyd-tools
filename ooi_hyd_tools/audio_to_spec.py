@@ -14,6 +14,8 @@ import boto3
 import botocore
 from botocore.config import Config
 
+from ooi_hyd_tools.instruments import HYDBB
+from ooi_hyd_tools.thresholds import FREQ_LIMS
 from ooi_hyd_tools.utils import select_logger
 
 
@@ -30,39 +32,45 @@ VOLTAGE_MULTIPLIER = 3
 # volts and the sheet sensitivities apply unmodified - no rca_correction_cals needed.
 DB_RANGE = (45, 120)
 
-# metadata files for output netCDF data products
-GLOBAL_ATTRS_YAML = "./metadata/attributes/globalAttributes.yaml"
-VARIABLE_ATTRS_YAML = "./metadata/attributes/variableAttributes.yaml"
+# cal files (cals/) and netCDF attribute yamls (attributes/); the repo's copy by default
+META_DIR = Path("./metadata")
 
-HYDBB_COORDS = {
-    "CE02SHBP-LJ01D-11-HYDBBA106": (44.63721, -124.30564),
-    "CE04OSBP-LJ01C-11-HYDBBA105": (44.36933, -124.95347),
-    "RS01SBPS-PC01A-08-HYDBBA103": (44.51516, -125.3899),
-    "RS01SLBS-LJ01A-09-HYDBBA102": (44.51505, -125.39002),
-    "RS03AXBS-LJ03A-09-HYDBBA302": (45.81676, -129.75426),
-    "RS03AXPS-PC03A-08-HYDBBA303": (45.81671, -129.75405),
-}
 
 
 @task
-def audio_to_spec(
+def audio_to_spec(start_date, flac_dir, hyd_refdes, apply_cals, freq_lims):
+    """the pipeline's spectrogram stage, with its repo-relative folders"""
+    return spectrogram_day(start_date, flac_dir, hyd_refdes, apply_cals, freq_lims)
+
+
+def spectrogram_day(
     start_date,
     flac_dir,
     hyd_refdes,
     apply_cals,
-    freq_lims,
+    freq_lims=FREQ_LIMS,
+    out_dir=Path("./output"),
+    meta_dir=META_DIR,
+    json_dir=None,
+    download_dir=Path("./downloads"),
 ):
+    """One day's hybrid millidecade spectrogram (.nc) and summary plot (.png) in out_dir,
+    from a folder of pbp-named FLAC ({INSTRUMENT}_YYYYMMDD_HHMMSS.flac). json_dir (pbp's
+    per-day audio index) defaults to meta_dir/json. Returns the .nc path."""
     # pbp takes dates as strings without slashes
     freq_lims = tuple(freq_lims)
     start_date = start_date.replace("/", "")
+    meta_dir = Path(meta_dir)
+    json_dir = Path(json_dir or meta_dir / "json")
 
-    gen_metadata(start_date, flac_dir, hyd_refdes)
+    gen_metadata(start_date, flac_dir, hyd_refdes, json_dir)
 
-    gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_lims)
+    return gen_hybrid_millidecade_spectrogram(
+        start_date, hyd_refdes, apply_cals, freq_lims, meta_dir, json_dir, Path(download_dir), Path(out_dir)
+    )
 
 
-@task
-def gen_metadata(start_date, flac_dir, hyd_refdes):
+def gen_metadata(start_date, flac_dir, hyd_refdes, json_dir):
     logger = select_logger()
 
     instrument = hyd_refdes[-9:]
@@ -72,7 +80,6 @@ def gen_metadata(start_date, flac_dir, hyd_refdes):
     logger.info(f"pbp reading audio from {flac_uri}")
     flac_prefix = instrument  # prefix for the audio files
     start_date = start_date  # start date for temporal metadata extraction (YYYYMMDD)
-    json_base_dir = "metadata/json"  # location to store generated metadata in JSON format
 
     # Convert the start and end dates to datetime objects
     start = datetime.strptime(start_date, "%Y%m%d")
@@ -84,7 +91,7 @@ def gen_metadata(start_date, flac_dir, hyd_refdes):
     meta_gen = IcListenMetadataGenerator(
         log=logger,
         uri=flac_uri,
-        json_base_dir=json_base_dir,
+        json_base_dir=str(json_dir),
         start=start,
         end=end,
         prefixes=[flac_prefix],
@@ -94,8 +101,7 @@ def gen_metadata(start_date, flac_dir, hyd_refdes):
     meta_gen.run()
 
 
-@task
-def find_cal_file(refdes, date_str):
+def find_cal_file(refdes, date_str, meta_dir=META_DIR):
     logger = select_logger()
     node = refdes[:8]
     current_utc_datetime = datetime.now(timezone.utc)
@@ -147,8 +153,8 @@ def find_cal_file(refdes, date_str):
             f"of it, and its cal is applied to the whole day"
         )
 
-    cal_file_path_str = f"./metadata/cals/{refdes}_{deployment_number}.nc"
-    cal_file_path = Path(cal_file_path_str)
+    cal_file_path = Path(meta_dir) / "cals" / f"{refdes}_{deployment_number}.nc"
+    cal_file_path_str = str(cal_file_path)
 
     if not cal_file_path.exists():
         raise FileNotFoundError(f"No calibration file found for {date_str}")
@@ -183,33 +189,29 @@ def cal_provenance(cal_path):
     return {k: v for k, v in attrs.items() if v is not None}
 
 
-def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_lims):
+def gen_hybrid_millidecade_spectrogram(
+    start_date, hyd_refdes, apply_cals, freq_lims, meta_dir, json_dir, download_dir, output_dir
+):
     logger = select_logger()
     instrument = hyd_refdes[-9:]
-    # set up directories
-    download_dir = Path("./downloads")
-    json_base_dir = Path("./metadata/json")
-    output_dir = Path("./output")
-
-    download_dir.mkdir(parents=True, exist_ok=True)
-    json_base_dir.mkdir(parents=True, exist_ok=True)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    for d in (download_dir, json_dir, output_dir):
+        d.mkdir(parents=True, exist_ok=True)
 
     output_prefix = f"{instrument}_"  # a prefix for the name of generate files
 
     # hybrid millidecade settings
     hmb_gen = HmbGen()
 
-    hmb_gen.set_json_base_dir(str(json_base_dir))
-    hmb_gen.set_global_attrs_uri(GLOBAL_ATTRS_YAML)
-    hmb_gen.set_variable_attrs_uri(VARIABLE_ATTRS_YAML)
+    hmb_gen.set_json_base_dir(str(json_dir))
+    hmb_gen.set_global_attrs_uri(str(meta_dir / "attributes/globalAttributes.yaml"))
+    hmb_gen.set_variable_attrs_uri(str(meta_dir / "attributes/variableAttributes.yaml"))
     hmb_gen.set_voltage_multiplier(VOLTAGE_MULTIPLIER)
     hmb_gen.set_subset_to(freq_lims)
 
     cal_attrs = {"calibration_file": "none"}
     if apply_cals:
-        logger.info("Applying calibration .nc files from the ooi-hyd-tools metadata folder.")
-        sensitivity_uri = find_cal_file(hyd_refdes, start_date)
+        logger.info(f"Applying calibration .nc files from {meta_dir / 'cals'}")
+        sensitivity_uri = find_cal_file(hyd_refdes, start_date, meta_dir)
         # hmb_gen.set_sensitivity(-170)
         hmb_gen.set_sensitivity(sensitivity_uri)
         cal_attrs = cal_provenance(sensitivity_uri)
@@ -243,7 +245,7 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_
 
     # globalAttributes.yaml is static, so every instrument inherited HYDBBA106's position
     # and a platform listing all six. Set both from the refdes actually being processed.
-    lat, lon = HYDBB_COORDS[hyd_refdes]
+    lat, lon = HYDBB[hyd_refdes].lat, HYDBB[hyd_refdes].lon
     ds.attrs["geospatial_bounds"] = f"POINT ({lat} {lon})"
     ds.attrs["platform"] = hyd_refdes
     ds.attrs.update(cal_attrs)
@@ -251,10 +253,11 @@ def gen_hybrid_millidecade_spectrogram(start_date, hyd_refdes, apply_cals, freq_
 
     plot_dataset_summary(
         ds,
-        lat_lon_for_solpos=HYDBB_COORDS[hyd_refdes],
-        title=f"{hyd_refdes}, {HYDBB_COORDS[hyd_refdes][0]}°N, {HYDBB_COORDS[hyd_refdes][1]}°W",
+        lat_lon_for_solpos=(lat, lon),
+        title=f"{hyd_refdes}, {lat}°N, {abs(lon)}°W",
         ylim=freq_lims,
         cmlim=DB_RANGE,
         jpeg_filename=f"{str(output_dir)}/{instrument}_{start_date}.png",
         show=False,
     )
+    return nc_filename

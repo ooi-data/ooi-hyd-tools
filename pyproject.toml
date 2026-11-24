@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ooi-hyd-tools"
-version = "1.9.0"
+version = "1.10.0"
 authors = [{ name="Joe Duprey", email="jduprey@uw.edu" }]
 readme = "README.md"
 description = "Tools and scripts for working with OOI hydrophone data"
@@ -54,6 +54,7 @@ event-audio = "ooi_hyd_tools.events:extract_event"
 cal-to-nc = "ooi_hyd_tools.cal_to_nc:cli"
 check-flac = "ooi_hyd_tools.check:check_flac"
 mseed-to-flac = "ooi_hyd_tools.mseed_to_flac:cli"
+day-rollup = "ooi_hyd_tools.day_rollup:cli"
 ooi-stream = "ooi_hyd_tools.stream:stream"
 ooi-listen = "ooi_hyd_tools.stream:listen"
 

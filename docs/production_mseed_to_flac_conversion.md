@@ -46,26 +46,48 @@ mseed-to-flac --refdes CE02SHBP-LJ01D-11-HYDBBA106 \
 - **Size:** about two-thirds of the mseed. One Oregon Shelf file was 26 MB of FLAC against
   39 MB of mseed. That's roughly 7.5 GB a day, or 2.7 TB a year, per instrument.
 
-## Daily products (proposed, not yet built)
+## Daily products
 
-Once a day's files have all landed, a second job would write:
+`day-rollup` rolls up each day, main folder and `addendum/` together, into three files next
+to the FLAC and mseed:
 
-- the per-day manifest: coverage, file list, exact starts;
-- the hybrid millidecade spectrogram (`.nc`, plus `.png`).
+- **`HYDBBA106_20261103_manifest.json`:** coverage, the file list with exact starts, and what
+  was built.
+- **`HYDBBA106_20261103.nc`:** the calibrated hybrid millidecade spectrogram.
+- **`HYDBBA106_20261103.png`:** its summary plot.
 
-This job is heavier: it needs the `[pipeline]` install (pbp, xarray, netCDF) and the
-calibration files in `metadata/`. It would ship as a container rather than a pip install. It
-runs once per instrument per day, so it can sit outside the ingest path.
+It runs from RCA's container image, which carries pbp, the netCDF stack and the cal files:
 
-Three things have to be settled first:
+```
+docker run --rm --user "$(id -u):$(id -g)" -v /files:/files \
+    public.ecr.aws/p0l4c7i2/ooi-hyd-tools:<tag> \
+    day-rollup --root /files \
+        --refdes CE02SHBP-LJ01D-11-HYDBBA106 --refdes CE04OSBP-LJ01C-11-HYDBBA105
+```
 
-- **When a day is complete.** Withheld data arrives in `addendum/` a median of 2.3 days later
-  and up to about 7 days later (Sep–Nov 2026), so a day may need a first run at day end and a
-  second after the addendum window.
-- **pbp's naming.** pbp only reads `INSTRUMENT_YYYYMMDD_HHMMSS` names in a single folder, so
-  the job has to stage server-named FLAC under those names, by links or a temporary copy.
-- **Network access.** The calibration lookup reads the deployment table live from OOI asset
-  management.
+- **Schedule:** run it on a timer, e.g. hourly. Each run checks the 14 days before today
+  (UTC). Addenda arrived up to 6.7 days late in Sep–Nov 2026. Today is left for later runs,
+  since it's still landing.
+- **What gets rebuilt:** only days whose inputs changed: the FLAC present, the instrument's cal
+  files and netCDF attributes, or the software version. An unchanged day costs a folder
+  listing.
+- **Older days:** `--start-date` and `--end-date` rebuild a fixed range, for backfill.
+- **Cal changes:** RCA publishes the image and its cal files; CI owns the schedule and
+  storage. A cal fix reaches the products when CI moves to the new tag. Days in the window
+  rebuild by themselves; older days need a backfill.
+- **Same code as the RCA pipeline:** the same FLAC give an identical `.nc`.
+- **Atomic writes:** outputs are written as `.part` and renamed when complete.
+- **Failures:** a day whose spectrogram fails still gets its manifest, with the error under
+  `products`. The run exits 1, and the day is retried on every run until it builds. An earlier
+  `.nc` stays until it's replaced, so check `products` in the manifest.
+- **Network:** needs outbound HTTPS. The cal lookup reads OOI asset management's deployment
+  table from GitHub.
+- **File ownership:** `--user` keeps the outputs from being owned by root.
+- **Cost:** an hour of audio took 14 s on a laptop. A full day hasn't been timed.
+
+The manifest keeps the RCA pipeline's fields (`check-flac --flac-layout ooi` reads it) and
+adds `generated`, `fingerprint` and `products`. `collisions` lists pieces the spectrogram left
+out because another piece started in the same second.
 
 ## Open questions for CI
 
@@ -77,8 +99,8 @@ Three things have to be settled first:
    upgrades be rolled out? Pin a release tag and bump it deliberately?
 4. **Storage:** is about +65% on broadband hydrophone storage (2.7 TB a year per instrument)
    acceptable? Which instruments: all six broadband, or the seafloor four first?
-5. **Temporary files:** `.flac.part` sits in the served folder for about a second while each
-   FLAC is written. Is that acceptable, or should it be written elsewhere and moved in?
+5. **Temporary files:** `.part` files sit in the served folder while each FLAC or daily
+   product is written, for about a second. Is that acceptable, or should it be written elsewhere and moved in?
 6. **Failures:** retry policy for exit 1, and where logs go. Who is alerted?
 7. **Backfill:** should we convert the existing archive too? If a later version changes the
    repair, do we regenerate affected files? The version in each header identifies them. A
@@ -86,5 +108,5 @@ Three things have to be settled first:
    clean up.
 8. **Serving:** does the raw data server need configuration to serve `.flac` (content type,
    directory listings)?
-9. **Daily products:** should CI run them, where should the `.nc`/`.png` and manifest live
-   (next to the FLAC, or a separate products tree), and what counts as a complete day?
+9. **Daily products:** can CI run the container on a timer, with `/files` mounted read-write
+   and outbound HTTPS? How often, and as which user?

@@ -13,13 +13,8 @@ from typing import Optional
 
 from ooipy.request.hydrophone_request import get_acoustic_data_LF
 
-LOW_FREQ_DICT = {
-    "RS01SLBS-MJ01A-05-HYDLFA101": ["HYSB1", (44.50829, -125.40466)],
-    "RS03AXBS-MJ03A-05-HYDLFA301": ["AXBA1", (45.82051, -129.73671)],
-    "RS01SUM1-LJ01B-05-HYDLFA104": ["HYS14", (44.56922, -125.14816)],
-    "RS03CCAL-MJ03F-06-HYDLFA305": ["AXCC1", (45.95479, -130.00932)],
-    "RS03ECAL-MJ03E-09-HYDLFA304": ["AXEC2", (45.93997, -129.73383)],
-}
+from ooi_hyd_tools.instruments import HYDLF
+
 
 
 # TODO just call the packaged mbari function one changes are merged to mbari-pbp
@@ -186,7 +181,7 @@ def run_low_freq_oneday(
     lf_data = get_acoustic_data_LF(
         starttime=date,
         endtime=endtime,
-        node=LOW_FREQ_DICT[hyd_refdes][0],
+        node=HYDLF[hyd_refdes].station,
         verbose=True,
         merge_traces=True,
     )
@@ -205,7 +200,7 @@ def run_low_freq_oneday(
 
     plot_dataset_summary(
         ds,
-        lat_lon_for_solpos=LOW_FREQ_DICT[hyd_refdes][1],
+        lat_lon_for_solpos=(HYDLF[hyd_refdes].lat, HYDLF[hyd_refdes].lon),
         title=hyd_refdes,
         ylim=(0.1, 100),
         cmlim=(32, 108),

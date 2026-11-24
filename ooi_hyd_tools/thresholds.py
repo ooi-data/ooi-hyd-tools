@@ -1,7 +1,7 @@
-"""OEK gap-handling thresholds (HYDBB flow chart).
+"""OEK gap-handling thresholds (HYDBB flow chart) and the spectrogram frequency limits.
 
-Kept import-free so the prefect dispatcher can read the --gap-threshold default without
-loading the science stack.
+Kept import-free so the prefect dispatcher can read the CLI defaults without loading the
+science stack.
 """
 
 # How far short of a full 5 minutes the sample count may fall and still count as complete.
@@ -14,3 +14,6 @@ COUNT_THRESHOLD = 0.01
 # mislabelled. Only consulted once the sample count says something is missing.
 # (OEK TrHld2; the default for --gap-threshold)
 GAP_THRESHOLD = 0.023
+
+# Hybrid millidecade spectrogram band, Hz (min, max); the default for --freq-lims
+FREQ_LIMS = (10, 30_000)

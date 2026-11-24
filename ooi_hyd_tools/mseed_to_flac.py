@@ -19,6 +19,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 import click
+import obspy as obs
 import soundfile as sf
 
 from ooi_hyd_tools.repair import MseedRepair
@@ -67,6 +68,58 @@ def ooi_name(tr):
     s = tr.stats
     stamp = s.starttime.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     return f"{s.network}-{s.station}-{s.location}-{s.channel}-{stamp}"
+
+
+def pbp_name(refdes, start):
+    """pbp's name for a file, without extension: INSTRUMENT_YYYYMMDD_HHMMSS, whole seconds only,
+    since that is all pbp parses"""
+    return f"{refdes[-9:]}_{obs.UTCDateTime(start).strftime('%Y%m%d_%H%M%S')}"
+
+
+def keep_longer(pieces, key):
+    """CI occasionally chops one 5-min window into pieces starting ~100 ms apart, which round
+    to the same whole-second pbp name. Keep the longer piece per key(piece) and record the
+    other for the manifest, rather than silently overwriting. pieces: [{start, npts,
+    sampling_rate, ...}]. Returns ({key: kept piece}, collisions)."""
+    logger = select_logger()
+    kept, collisions = {}, []
+    for p in pieces:
+        k = key(p)
+        prev = kept.get(k)
+        if prev:
+            long, short = (p, prev) if p["npts"] > prev["npts"] else (prev, p)
+            kept_s, dropped_s = (round(x["npts"] / x["sampling_rate"], 3) for x in (long, short))
+            collisions.append(
+                {"stamp": k, "kept_s": kept_s, "dropped_s": dropped_s, "dropped_start": str(short["start"])}
+            )
+            logger.warning(
+                f"ISSUE {k}: two pieces start in the same second ({prev['start']} and "
+                f"{p['start']}); keeping the longer ({kept_s:.2f}s over {dropped_s:.2f}s)"
+            )
+            p = long
+        kept[k] = p
+    return kept, collisions
+
+
+def day_manifest(refdes, day, files, source_mseed_files, collisions, gap_threshold=None):
+    """A day's coverage and file list. A day is ~288 files and often partial, so a consumer has
+    no other way to tell a recording gap from a failed upload. files: [{name, start, npts,
+    sampling_rate}]; collisions: pieces dropped because they start in the same second."""
+    seconds = sum(f["npts"] / f["sampling_rate"] for f in files)
+    return {
+        "refdes": refdes,
+        "date": day.strftime("%Y-%m-%d"),
+        "written_by": f"ooi-hyd-tools {version('ooi-hyd-tools')}",
+        "counts": "int24_left_justified",
+        "sampling_rates": sorted({f["sampling_rate"] for f in files}),
+        "gap_threshold_s": gap_threshold,
+        "source_mseed_files": source_mseed_files,
+        "files_written": len(files),
+        "seconds_written": round(seconds, 3),
+        "day_coverage_pct": round(100 * seconds / 86400, 2),
+        "collisions": collisions,
+        "files": files,
+    }
 
 
 def convert_file(mseed, refdes, out_dir=None, gap_threshold=GAP_THRESHOLD):
