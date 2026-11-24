@@ -20,6 +20,7 @@ https://github.com/lifewatch/pypam
 | section | what it covers |
 | --- | --- |
 | [Converting mseed to flac](#how-to-convert-ooi-mseed-archives-to-flac) | the CLI, and how the gap repair, naming and bit depth work |
+| [One file at a time](#converting-one-file-at-a-time) | `mseed-to-flac`, the slim per-file converter for production ingest |
 | [Local mirror and raw data server layout](#running-from-a-local-mirror-with-flac-in-the-raw-data-server-layout) | reading mseed from a mounted archive, writing FLAC in its tree and naming |
 | [Run logs](#run-logs) | the per-day log files kept after each run |
 | [Checking a range](#checking-a-range) | finding the days in a range that need a re-run |
@@ -40,6 +41,8 @@ Longer notes live in [`docs/`](docs/):
   and the per-day manifest. Written for external users; safe to hand out.
 - [**upstream-repair.md**](docs/upstream-repair.md) - what applying the jitter and gap repair at
   ingest, in the OOI ORB driver that writes the mseed, would take.
+- [**production_mseed_to_flac_conversion.md**](docs/production_mseed_to_flac_conversion.md) -
+  running `mseed-to-flac` at ingest so FLAC lands next to each mseed, and open questions for CI.
 
 # How to convert ooi mseed archives to flac
 ```
@@ -47,8 +50,11 @@ git clone https://github.com/ooi-data/ooi-hyd-tools.git
 conda create -n ooi-hyd-tools python=3.11 pip
 conda activate ooi-hyd-tools
 cd ooi-hyd-tools
-pip install -e .
+pip install -e ".[pipeline]"
 ```
+
+The base install (`pip install -e .`) carries only `mseed-to-flac`; the pipeline needs
+`[pipeline]`.
 
 `acoustic-pipeline` converts one day or a range of archived OOI mseed to 5-minute FLAC:
 
@@ -63,6 +69,17 @@ acoustic-pipeline \
 `./data/flac`, or anywhere with `--flac-root`; spectrograms go to `./output`. The audio stage
 runs from any directory, but the spectrogram stage reads cals from `./metadata`, so run it from
 the repo root. `acoustic-pipeline --help` describes every option.
+
+### Converting one file at a time
+
+`mseed-to-flac` repairs and converts single mseed files, writing each FLAC next to its mseed
+with the server's naming. It needs only the base install, for running at ingest as each file
+closes; output matches the day pipeline's. See
+[docs/production_mseed_to_flac_conversion.md](docs/production_mseed_to_flac_conversion.md).
+
+```
+mseed-to-flac --refdes CE02SHBP-LJ01D-11-HYDBBA106 2026/11/14/*.mseed 2026/11/14/addendum/*.mseed
+```
 
 ### Running from a local mirror, with FLAC in the raw data server layout
 
@@ -393,7 +410,7 @@ Ordered by size of the error on delivered spectrograms.
 | Reprocess | `HYDBBA302` 2016-07-12 to 2017-07-31 | Dep 3 was calibrated with a 2018 sheet postdating a hardware rebuild. Cal now correct; products from that window are **-4.68 dB off on average, up to 8.65 dB at 190.7 kHz** |
 | Suspect cert | `HYDBBA106` deps 1 and 3 (2014-2015, 2016-2017) | The 2013 cert `ATOSU-58324-00014__20130802` tabulates -175.1 dB at 13.5 kHz, **3-5 dB below every later cert for that hydrophone**, though its 26 Hz value matches them. Transcribed correctly, so either the cert is wrong or the unit changed. Products above 13.5 kHz are suspect by several dB |
 | Reprocess | `HYDBBA102` 2016-07-17 to 2017-07-29 | Dep 3 was calibrated with dep 2's hydrophone. Cal now correct; products from that window are **-2.10 dB off on average, up to 5.40 dB at 90.4 kHz** |
-| Cal gap | all instruments, below 10 kHz | Cert tables start at 10 kHz (13.5 kHz on four early deployments); below that, cals use the cert's 26 Hz value with a first-order roll-off. The **10 Hz corner is interim** - HydroCal puts icListen HF corners at ~7-15 Hz, so up to ~1.5 dB at 10 Hz - until our units are HydroCal-calibrated. Products **step at deployment boundaries** and on the date the model went in; `calibration_lf_*` attributes mark products that include it |
+| Modeled | all instruments, below 10 kHz | Certs tabulate from 10 kHz (13.5 kHz on four early deployments); below that the cal is a first-order roll-off through the cert's 26 Hz value, 10 Hz corner, **within ~1.5 dB at 10 Hz**. Products without `calibration_lf_*` attributes predate the model (2026-10-06) and use a flat copy of the first table point |
 | Untracked | all instruments | Sheets bake a **preamp gain** into the sensitivity (36 dB on most, 30 dB on `ATAPL-58324-00005__20131211`) but specs don't record it, so a mismatched preamp would go unnoticed |
 | Step change | all instruments, >12 kHz | The v1.7 bit-depth fix removed **+0.96 dB at 20-27 kHz** (+0.45 at 12-20 kHz). Within daily variability, but a step in multi-year records; note reprocess dates for trend work |
 | Placeholder | `HYDBBA105` deps 2, 4 and 10 | **True vendor cals missing.** Dep 10's doc is a pressure-test certificate, so it uses the prior cal; deps 2 and 4 have only plot-only certs before them, so they use the next later cal. Each carries a `placeholder` reason |

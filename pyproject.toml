@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ooi-hyd-tools"
-version = "1.8.3"
+version = "1.9.0"
 authors = [{ name="Joe Duprey", email="jduprey@uw.edu" }]
 readme = "README.md"
 description = "Tools and scripts for working with OOI hydrophone data"
@@ -15,18 +15,23 @@ classifiers = [
 ]
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
+# base install: mseed-to-flac and the repair it uses; the pipeline needs [pipeline]
 dependencies = [
+    "obspy==1.5.0", # 1.4.1 pins sqlalchemy<2, which blocks prefect 3
+    "numpy<2",
+    "soundfile==0.12.1",
+    "fsspec>2024.10.0",
+    "tqdm>=4.67.1",
+    "loguru>0.6.0",
+    "click>=7",
+]
+
+[project.optional-dependencies]
+pipeline = [
     "cftime>=1.6.0",
     "pandas<3.0.0,>=2.0.2",
     "xarray==2023.8.0",
-    "fsspec>2024.10.0",
     "s3fs>2024.6.0",
-    "numpy<2",
-    "soundfile==0.12.1",
-    "tqdm>=4.67.1",
-    "obspy==1.5.0", # 1.4.1 pins sqlalchemy<2, which blocks prefect 3
-    "loguru>0.6.0",
-    "click>=7",
     "matplotlib>3.9",
     "pydantic>2",
     "pyyaml>=6", 
@@ -48,6 +53,7 @@ acoustic-pipeline = "ooi_hyd_tools.pipeline:run_acoustic_pipeline"
 event-audio = "ooi_hyd_tools.events:extract_event"
 cal-to-nc = "ooi_hyd_tools.cal_to_nc:cli"
 check-flac = "ooi_hyd_tools.check:check_flac"
+mseed-to-flac = "ooi_hyd_tools.mseed_to_flac:cli"
 ooi-stream = "ooi_hyd_tools.stream:stream"
 ooi-listen = "ooi_hyd_tools.stream:listen"
 

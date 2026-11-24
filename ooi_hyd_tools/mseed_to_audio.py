@@ -1,5 +1,4 @@
 import json
-import soundfile as sf
 
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +8,7 @@ from importlib.metadata import distributions, version
 from ooi_hyd_tools.audio_to_spec import audio_to_spec
 from ooi_hyd_tools.low_freq import run_low_freq_oneday
 from ooi_hyd_tools.cloud import sync_png_nc_to_s3
+from ooi_hyd_tools.mseed_to_flac import INT24_SHIFT, ooi_name, write_audio
 from ooi_hyd_tools.repair import HydrophoneDay
 from ooi_hyd_tools.utils import flac_day_dir, log_to_file, manifest_name, select_logger
 from ooi_hyd_tools.seismometer import run_obs_viz
@@ -24,10 +24,10 @@ Two things make this more than a format conversion:
 Timestamps cannot be trusted, so each file is repaired first - see repair.py.
 
 Counts must survive the write. mseed carries 24-bit ADC counts that the calibration chain
-depends on, and libsndfile would truncate them; see INT24_SHIFT.
+depends on, and libsndfile would truncate them; see INT24_SHIFT in mseed_to_flac.py.
 
 Filenames carry whole seconds only, because that is all mbari-pbp can parse. The exact
-start, including sub-second, goes in the file header - see _write_audio.
+start, including sub-second, goes in the file header - see write_audio there.
 
 flac_layout="ooi" instead mirrors the raw data server, for copying FLAC alongside the
 mseed: FLAC_ROOT/SITE/NODE/INSTRUMENT/YYYY/MM/DD/[addendum/] with the server's file naming,
@@ -35,42 +35,6 @@ e.g. OO-HYEA2--YDH-2026-10-20T00:40:00.014000Z.flac. pbp can't read those names 
 addendum/ split, so that layout is for the audio stage only.
 
 """
-
-# mseed counts are 24-bit right-justified in int32 (full scale 2**23); libsndfile's int32
-# API is left-justified (full scale 2**31), so writing counts straight to PCM_24 stores
-# count >> 8. Shifting left by 8 first cancels that.
-INT24_SHIFT = 8
-
-def _write_audio(path, data, sr, subtype, refdes, start, npts):
-    """write one audio file, stamping the exact start time into the header.
-
-    Filenames only carry whole seconds, because that is the finest resolution mbari-pbp
-    can parse (meta_gen/utils.py matches {prefix}_YYYYMMDD_HHMMSS. and nothing after).
-    A recording that resumes mid-second therefore loses up to 1 s in its name, so the
-    true start goes in the FLAC's Vorbis comment, where nothing truncates it.
-
-    Written to a .part file and renamed when complete, so a killed run never leaves a
-    FLAC that won't decode.
-    """
-    part = path.with_name(f"{path.name}.part")
-    with sf.SoundFile(
-        str(part),
-        "w",
-        samplerate=sr,
-        channels=1,
-        subtype=subtype,
-        format=path.suffix[1:].upper(),
-    ) as f:
-        f.date = str(start)  # exact, sub-second; the filename is rounded
-        f.software = f"ooi-hyd-tools {version('ooi-hyd-tools')}"
-        # counts= says what the integers mean, for readers who have no changelog to consult
-        f.comment = (
-            f"refdes={refdes} start={start} npts={npts} sampling_rate={sr} "
-            f"counts=int24_left_justified"
-        )
-        f.write(data)
-    part.replace(path)
-
 
 @task(retries=2, retry_delay_seconds=60)
 def convert_mseed_to_audio(
@@ -110,9 +74,8 @@ def convert_mseed_to_audio(
                 name = f"{hyd_refdes[-9:]}_{stamp}"
                 if flac_layout == "ooi":
                     # the server's naming, to the microsecond, so pieces never share a name
-                    s = tr.stats
                     stamp = start.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-                    name = f"{sub}{s.network}-{s.station}-{s.location}-{s.channel}-{stamp}"
+                    name = f"{sub}{ooi_name(tr)}"
                     stamp = f"{sub}{stamp}"  # same start in the day and addendum/ isn't a clash
 
                 # CI occasionally chops one 5-min window into pieces starting ~100 ms
@@ -144,7 +107,7 @@ def convert_mseed_to_audio(
                 flac_path.parent.mkdir(exist_ok=True)
                 logger.debug(str(flac_path))
                 # counts are left-shifted so PCM_24 stores them intact, see INT24_SHIFT
-                _write_audio(
+                write_audio(
                     flac_path, tr.data << INT24_SHIFT, sr, "PCM_24", hyd_refdes, start, npts
                 )
                 written += npts / sr

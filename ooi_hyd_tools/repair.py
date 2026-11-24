@@ -5,11 +5,11 @@ Timestamps cannot be trusted. The DDS mislabels when each burst of samples arriv
 anywhere from a fraction of a millisecond to a quarter second, differing by instrument and
 by year - but it never moves or duplicates recording. So the sample count decides whether
 anything is actually missing, and timestamps are only consulted afterwards to locate a
-real break. See HydrophoneDay._deal_with_gaps_and_overlaps for the three cases (OEK HYDBB
+real break. See MseedRepair._deal_with_gaps_and_overlaps for the three cases (OEK HYDBB
 flow chart).
 
-Needs only obspy, numpy, fsspec and requests, so lightweight consumers (the live stream)
-can import it without the spectrogram stack.
+Needs only the base install (obspy, numpy, fsspec, tqdm), so lightweight consumers (the
+live stream, mseed-to-flac) can import it without the spectrogram stack.
 """
 import concurrent.futures
 import multiprocessing as mp
@@ -24,7 +24,7 @@ import numpy as np
 import obspy as obs
 from tqdm import tqdm
 
-from ooi_hyd_tools.thresholds import COUNT_THRESHOLD
+from ooi_hyd_tools.thresholds import COUNT_THRESHOLD, GAP_THRESHOLD
 from ooi_hyd_tools.utils import select_logger
 
 # CI writes mseed in 5-min files on fixed startpoints (00:00, 00:05, ...), so a complete
@@ -61,91 +61,13 @@ def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
 
 
 
-class HydrophoneDay:
-    def __init__(
-        self,
-        refdes,
-        str_date,
-        gap_threshold,
-        clean_list=None,
-        mseed_root=None,
-    ):
-        self.refdes = refdes
-        self.date = datetime.strptime(str_date, "%Y/%m/%d")
+class MseedRepair:
+    """Repair one 5-minute mseed file. Every input - sample count, trace starttimes, the
+    start in the filename - comes from that file, so a file repaired alone matches the same
+    file repaired as part of a day."""
+
+    def __init__(self, gap_threshold=GAP_THRESHOLD):
         self.gap_threshold = gap_threshold
-        self.mseed_urls = (
-            self.get_local_mseed_paths(str_date, refdes, Path(mseed_root).expanduser())
-            if mseed_root
-            else self.get_mseed_urls(str_date, refdes)
-        )
-        self.clean_list = clean_list
-        self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
-
-    def get_local_mseed_paths(self, day_str, refdes, root):
-        """list a day from a local mirror laid out as ROOT/<refdes>/YYYY/MM/DD/[addendum/]"""
-        logger = select_logger()
-        if not (root / refdes).is_dir():
-            # an unmounted share looks exactly like a missing day, so fail instead of skipping
-            raise FileNotFoundError(f"{root / refdes} not found - is the archive mounted?")
-        day_dir = root / refdes / day_str
-        logger.info(day_dir)
-
-        paths = [str(p) for p in sorted(day_dir.glob("*.mseed"))]
-        paths += [str(p) for p in sorted(day_dir.glob("addendum/*.mseed"))]
-        if not paths:
-            logger.warning(f"No local mseed for {day_str} in {day_dir}")
-            return None
-        return paths
-
-    def get_mseed_urls(self, day_str, refdes):
-        logger = select_logger()
-        base_url = "https://rawdata.oceanobservatories.org/files"
-        mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day_str}/"
-        FS = fsspec.filesystem("http")
-        logger.info(mainurl)
-        logger.debug(Path.cwd())
-
-        try:
-            data_url_list = sorted(
-                f["name"]
-                for f in FS.ls(mainurl)
-                if f["type"] == "file" and f["name"].endswith(".mseed")
-            )
-
-            try:
-                addendum_list = sorted(
-                    f["name"]
-                    for f in FS.ls(f"{mainurl}/addendum")
-                    if f["type"] == "file" and f["name"].endswith(".mseed")
-                )
-            except Exception:
-                logger.info(f"No addendum for {day_str}")
-                addendum_list = []
-
-        except FileNotFoundError:
-            logger.warning(f"No directory on the raw data server for {day_str}")
-            return None
-        except Exception as e:
-            # transient server/network failure - raise so the task retries instead of
-            # silently writing off the day as "no data"
-            raise RuntimeError(f"listing failed for {mainurl}") from e
-
-        data_url_list.extend(addendum_list)
-
-        if not data_url_list:
-            logger.warning("No Data Available for Specified Time")
-            return None
-
-        return data_url_list
-
-    def read_and_repair_gaps(self):
-        if self.mseed_urls is None:
-            return None
-        self.clean_list = _map_concurrency(
-            func=self._deal_with_gaps_and_overlaps,
-            iterator=self.mseed_urls,
-            verbose=False,
-        )
 
     def _read_mseed(self, url):
         """download one file, retrying transient server errors.
@@ -347,3 +269,92 @@ class HydrophoneDay:
         starts = np.array([tr.stats.starttime.timestamp for tr in st])
         npts = np.array([tr.stats.npts for tr in st])
         return np.rint((starts[1:] - (starts[:-1] + npts[:-1] / sr)) * sr).astype(int)
+
+
+class HydrophoneDay(MseedRepair):
+    """one day of a hydrophone: lists its files, then repairs each with MseedRepair"""
+
+    def __init__(
+        self,
+        refdes,
+        str_date,
+        gap_threshold,
+        clean_list=None,
+        mseed_root=None,
+    ):
+        self.refdes = refdes
+        self.date = datetime.strptime(str_date, "%Y/%m/%d")
+        self.gap_threshold = gap_threshold
+        self.mseed_urls = (
+            self.get_local_mseed_paths(str_date, refdes, Path(mseed_root).expanduser())
+            if mseed_root
+            else self.get_mseed_urls(str_date, refdes)
+        )
+        self.clean_list = clean_list
+        self.file_str = f"{self.refdes}_{self.date.strftime('%Y_%m_%d')}"
+
+    def get_local_mseed_paths(self, day_str, refdes, root):
+        """list a day from a local mirror laid out as ROOT/<refdes>/YYYY/MM/DD/[addendum/]"""
+        logger = select_logger()
+        if not (root / refdes).is_dir():
+            # an unmounted share looks exactly like a missing day, so fail instead of skipping
+            raise FileNotFoundError(f"{root / refdes} not found - is the archive mounted?")
+        day_dir = root / refdes / day_str
+        logger.info(day_dir)
+
+        paths = [str(p) for p in sorted(day_dir.glob("*.mseed"))]
+        paths += [str(p) for p in sorted(day_dir.glob("addendum/*.mseed"))]
+        if not paths:
+            logger.warning(f"No local mseed for {day_str} in {day_dir}")
+            return None
+        return paths
+
+    def get_mseed_urls(self, day_str, refdes):
+        logger = select_logger()
+        base_url = "https://rawdata.oceanobservatories.org/files"
+        mainurl = f"{base_url}/{refdes[0:8]}/{refdes[9:14]}/{refdes[18:27]}/{day_str}/"
+        FS = fsspec.filesystem("http")
+        logger.info(mainurl)
+        logger.debug(Path.cwd())
+
+        try:
+            data_url_list = sorted(
+                f["name"]
+                for f in FS.ls(mainurl)
+                if f["type"] == "file" and f["name"].endswith(".mseed")
+            )
+
+            try:
+                addendum_list = sorted(
+                    f["name"]
+                    for f in FS.ls(f"{mainurl}/addendum")
+                    if f["type"] == "file" and f["name"].endswith(".mseed")
+                )
+            except Exception:
+                logger.info(f"No addendum for {day_str}")
+                addendum_list = []
+
+        except FileNotFoundError:
+            logger.warning(f"No directory on the raw data server for {day_str}")
+            return None
+        except Exception as e:
+            # transient server/network failure - raise so the task retries instead of
+            # silently writing off the day as "no data"
+            raise RuntimeError(f"listing failed for {mainurl}") from e
+
+        data_url_list.extend(addendum_list)
+
+        if not data_url_list:
+            logger.warning("No Data Available for Specified Time")
+            return None
+
+        return data_url_list
+
+    def read_and_repair_gaps(self):
+        if self.mseed_urls is None:
+            return None
+        self.clean_list = _map_concurrency(
+            func=self._deal_with_gaps_and_overlaps,
+            iterator=self.mseed_urls,
+            verbose=False,
+        )
