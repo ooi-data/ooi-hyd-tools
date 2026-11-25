@@ -15,10 +15,11 @@ COUNT_THRESHOLD = 0.01
 # (OEK TrHld2; the default for --gap-threshold)
 GAP_THRESHOLD = 0.023
 
-# Repaired stretches shorter than this aren't written as FLAC. Where CI split a window into
-# many files, ms-long stubs (often 64 samples) land as their own pieces; each drop is logged
-# and listed in the day's manifest.
-MIN_FILE_SECONDS = 1.0
+# Repaired stretches shorter than this aren't written as FLAC: partial-packet slivers (64-640
+# samples) at file boundaries where CI split a window into many files. Set just above them, so
+# whole 0.25 s packets and other short real audio are kept for any use. Each drop is logged and
+# listed in the manifest.
+MIN_FILE_SECONDS = 0.02
 
 # A file whose trace labels span less than this fraction of its audio has one timestamp on
 # every packet (all instruments, 2023-06-07 to 2023-10-05). The label dates the first packet;

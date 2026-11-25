@@ -216,9 +216,10 @@ CASE C  TOO MUCH    [==|==|==|==|==|==|==|==|==|==|==|==|==|=================]
 ```
 
 The repair discards nothing: a short file still yields audio, and missing time is reported
-rather than silently dropped. The one exception is stretches under 1 s (`MIN_FILE_SECONDS`),
-ms-long stubs left where CI split a window into many files: they aren't written, but each is
-logged and listed in the manifest. A gap counts as a real break only if it is longer than
+rather than silently dropped. The one exception is stretches under 20 ms (`MIN_FILE_SECONDS`),
+partial-packet slivers where CI split a window into many files. They aren't written, but each
+is logged and listed in the manifest. Only an instrument's own files are read (station code,
+blank location), since a folder can hold others. A gap counts as a real break only if it is longer than
 `--gap-threshold` (OEK `TrHld2`, default 0.023 s) **and** longer than the file's own measured
 label noise. An overlap can't be real, since one ADC can't record an instant twice, so the
 largest overlap in a file measures how far its timestamps lie (10-250 ms observed, by
@@ -304,9 +305,9 @@ audio so its presence means the day finished:
   headers.
 - `sampling_rates` lists every rate in the day; a few days mix rates, so each file has its own.
 - `day_coverage_pct` separates a short recording day from a failed upload.
-- `collisions` records pieces dropped because two started in the same second (see Known
-  issues). That audio is unique and is written nowhere else.
-- `stubs` records pieces under 1 s that weren't written. `mseed-to-flac` logs them instead.
+- `collisions` records pieces dropped because two started in the same second. That audio is
+  written nowhere else. Rare except on fragmented days (see Known issues).
+- `stubs` records pieces under 20 ms that weren't written. `mseed-to-flac` logs them instead.
 - `approximate_timing` names files whose start is right but whose later samples may be placed
   early (degenerate timestamps, 2023-06-07 to 2023-10-05). Read from the header comment
   (`timing=approximate`), so FLAC written before v1.12 never appear.
@@ -419,9 +420,10 @@ Missing products first, then ordered by size of the error on delivered spectrogr
 | Untracked | all instruments | Sheets bake a **preamp gain** into the sensitivity (30 dB on the 2013-2015 certs checked, 36 dB from 2017) but specs don't record it, so a mismatched preamp would go unnoticed |
 | Step change | all instruments, >12 kHz | The v1.7 bit-depth fix removed **+0.96 dB at 20-27 kHz** (+0.45 at 12-20 kHz). Within daily variability, but a step in multi-year records; note reprocess dates for trend work |
 | Placeholder | `HYDBBA105` deps 2, 4 and 10 | **True vendor cals missing.** Dep 10's doc is a pressure-test certificate, so it uses the prior cal; deps 2 and 4 have only plot-only certs before them, so they use the next later cal. Each carries a `placeholder` reason |
-| Collision loss | seafloor instruments; `HYDBBA106` 419 of 1,902 days | Two pieces starting in the same second can't both get a whole-second name; the guard keeps the longer and logs an ISSUE. The dropped piece is **unique audio**: ~1.4 h across `HYDBBA106`'s archive, but **about a third of the day** on days CI split into ~1,600 files (2019-12-08, 2022-11-29). `--flac-layout ooi` and `mseed-to-flac` name files to the microsecond and keep both; the pbp layout, and so every spectrogram, still drops one |
+| Fragmented days | 27 instrument-days, mostly `HYDBBA103` 2018 and `HYDBBA106` | On days CI split into ~1,600 files the day's audio is isolated 0.25 s packets with real gaps between them (all 420 s of `HYDBBA106` 2019-12-08). Packets a fraction of a second apart share a whole second, so **the pbp layout, and every spectrogram, keeps one per second** (596 of 1,668 packets, 149 of 420 s, lost on 2019-12-08), listed in `collisions`. `--flac-layout ooi` and `mseed-to-flac` keep all. Elsewhere collisions between real pieces are rare (~10 in the archive, ~1 s each) |
+| Foreign files | `HYDBBA105` folder, 2023-08-29 to 2023-10-10 | The folder holds other instruments' files on 2023-08-31 and 09-05 (`HYDBBA102`'s checked: an exact copy), and a second stream `OO-HYEA1-T1-YDH` that **isn't** a copy of `HYEA1` (no shared samples). On 2023-08-29 `T1` holds the day and `HYEA1` is near-empty. From v1.12 only the instrument's own station code with a blank location is read, and skipped files are logged; days processed earlier mixed them in. What `T1` is: asked of CI |
 | Mixed rates | `HYDBBA106` 2024-08-20 (6.4 kHz addenda), 2025-06-24 to 06-28 (64/128/256 kHz) | FLAC headers and manifests (from v1.8.2) carry each file's rate. Whether pbp handles mixed rates within a day is **unchecked**, so treat those days' spectrograms as suspect |
-| Stale stub files | seafloor instruments, days processed before v1.11 | ms-long stubs were written as their own FLAC - **152** on `HYDBBA102`'s 622-file 2016-07-20, **366** across `HYDBBA106`'s archive. Pieces under 1 s are now dropped, but S3 uploads never delete, so a rerun leaves the old stubs in place. Acoustically harmless |
+| Stale stub files | seafloor instruments, days processed before v1.11 | ms-long stubs were written as their own FLAC - **152** on `HYDBBA102`'s 622-file 2016-07-20, **366** across `HYDBBA106`'s archive. Pieces under 20 ms are now dropped, but S3 uploads never delete, so a rerun leaves the old stubs in place. Acoustically harmless |
 | Duplicated packets | `HYDBBA105`, `HYDBBA302` 2023-06-15 17:25-17:35; extent unknown | CASE C (more samples than 5 min holds) on both instruments in the same three windows with matching sizes, pointing to duplicated packets shore-side. Audio is kept and flagged, so six FLACs run slightly over 300 s: **suspect for sample-accurate work**. `HYDBBA106`'s full archive has one (2026-10-25); the other instruments have **not been swept** |
 | Degenerate timestamps | all six instruments, 2023-06-07 to 2023-10-05 | Every packet in a file carries one label, before upstream's per-packet starttime fix (2023-10-03). Surveyed four days a month across the archive: every file in the window, none outside. Full files (~70%) label the window start and are unaffected. In partial files the label dates the first packet (the same resume time shows on several instruments at once), but the missing time, a median ~2 min, sits at points that can't be located, so **audio after the first gap is placed early**. From v1.12 these FLAC carry `timing=approximate` and are listed in the manifest's `approximate_timing`; days before v1.12 need a rerun to get the flag |
 

@@ -22,7 +22,7 @@ import click
 import obspy as obs
 import soundfile as sf
 
-from ooi_hyd_tools.repair import MseedRepair
+from ooi_hyd_tools.repair import MseedRepair, own_files
 from ooi_hyd_tools.thresholds import GAP_THRESHOLD, MIN_FILE_SECONDS
 from ooi_hyd_tools.utils import select_logger
 
@@ -178,7 +178,7 @@ def cli(mseed, refdes, out_dir, gap_threshold):
         raise click.UsageError("--out-dir is required for URLs")
     logger = select_logger()
     failed = []
-    for m in mseed:
+    for m in own_files(list(mseed), refdes):  # other instruments' files are skipped, exit 0
         paths = convert_file(m, refdes, out_dir, gap_threshold)
         if paths is None:
             failed.append(m)

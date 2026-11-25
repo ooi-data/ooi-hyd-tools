@@ -34,9 +34,11 @@ mseed-to-flac --refdes CE02SHBP-LJ01D-11-HYDBBA106 \
   - A file whose data starts late (common in addenda) is named from where the data begins,
     e.g. `...T11:33:05.020000Z.flac` from a `...T11:30:00` mseed.
   - A real break in recording gives one FLAC per unbroken stretch.
-  - Stretches under 1 s aren't written: ms-long stubs where CI split a window into many
-    files. Each is logged as an `ISSUE`. A file that is all stub writes nothing and still
+  - Stretches under 20 ms aren't written: partial-packet slivers where CI split a window into
+    many files. Each is logged as an `ISSUE`. A file that is all stub writes nothing and still
     exits 0.
+- **Other stations:** files without the instrument's own station code and a blank location
+  (e.g. `OO-HYEA1-T1-YDH` given `--refdes ...HYDBBA105`) are skipped with an `ISSUE`, exit 0.
 - **Atomic writes:** each FLAC is written as `<name>.flac.part` and renamed when complete.
 - **Reruns** overwrite the same names.
 - **Exit status:** 1 if any input couldn't be read, so the caller can retry it.
@@ -114,3 +116,6 @@ out because another piece started in the same second.
    directory listings)?
 9. **Daily products:** can CI run the container on a timer, with `/files` mounted read-write
    and outbound HTTPS? How often, and as which user?
+10. **HYDBBA105 folder, Aug-Oct 2023:** what is the `OO-HYEA1-T1-YDH` stream (2023-08-29 to
+    2023-10-10, different data from `HYEA1`)? Why does the folder hold other instruments' files
+    on 2023-08-31 and 2023-09-05?

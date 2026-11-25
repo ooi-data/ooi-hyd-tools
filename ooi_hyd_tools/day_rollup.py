@@ -32,14 +32,15 @@ from loguru import logger as loguru_logger
 
 from ooi_hyd_tools.audio_to_spec import META_DIR, spectrogram_day
 from ooi_hyd_tools.mseed_to_flac import day_manifest, keep_longer, pbp_name
+from ooi_hyd_tools.repair import own_files
 from ooi_hyd_tools.thresholds import FREQ_LIMS
 from ooi_hyd_tools.utils import flac_day_dir, iter_dates, manifest_name, select_logger
 
 
-def day_flac(day_dir):
-    """the day's FLAC, addenda included, with the exact start from each header"""
+def day_flac(day_dir, refdes):
+    """the instrument's FLAC for the day, addenda included, with the exact start from each header"""
     files = []
-    for p in sorted(day_dir.glob("*.flac")) + sorted(day_dir.glob("addendum/*.flac")):
+    for p in own_files(sorted(day_dir.glob("*.flac")) + sorted(day_dir.glob("addendum/*.flac")), refdes):
         with sf.SoundFile(str(p)) as f:
             files.append(
                 {
@@ -79,7 +80,7 @@ def roll_up_day(root, refdes, day, meta_dir=META_DIR, force=False):
     logger = select_logger()
     meta_dir = Path(meta_dir)
     day_dir = Path(flac_day_dir(root, refdes, day, "ooi"))
-    files = day_flac(day_dir)
+    files = day_flac(day_dir, refdes)
     if not files:
         return "no flac"
 
@@ -119,7 +120,7 @@ def roll_up_day(root, refdes, day, meta_dir=META_DIR, force=False):
     if error:
         logger.opt(exception=error).error(f"{refdes[-9:]} {day:%Y-%m-%d}: spectrogram failed")
 
-    source_mseed = len(list(day_dir.glob("*.mseed")) + list(day_dir.glob("addendum/*.mseed")))
+    source_mseed = len(own_files(list(day_dir.glob("*.mseed")) + list(day_dir.glob("addendum/*.mseed")), refdes))
     manifest = day_manifest(refdes, day, files, source_mseed, collisions) | {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "fingerprint": fp,

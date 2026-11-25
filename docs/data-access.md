@@ -99,8 +99,8 @@ this per day:
 - **A few days mix sampling rates**, so `sampling_rates` lists every rate in the day and each
   `files` entry carries its own. Manifests from before v1.8.2 have a single `sampling_rate`
   instead, which can be wrong on those days; the file header is always right.
-- **Pieces under 1 s aren't written.** From v1.11, `stubs` lists them by start and length.
-  Earlier deliveries can include a few millisecond-long FLAC; they're safe to ignore.
+- **Pieces under 20 ms aren't written.** From v1.12, `stubs` lists these slivers by start and
+  length. Earlier deliveries include them as millisecond-long FLAC; they're safe to ignore.
 - **Timing is approximate in some 2023 files.** From 2023-06-07 to 2023-10-05 the raw data
   carries one timestamp per file. Where recording was partial, the file's start is right but
   its gaps can't be located, so later samples may sit early. From v1.12 these are listed in

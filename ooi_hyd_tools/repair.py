@@ -41,6 +41,29 @@ RETRY_WAIT = 5  # seconds, doubled each attempt
 # OO-HYEA2--YDH.2015-09-03T23:55:06.365250.mseed before 2016
 FILENAME_START = re.compile(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)Z?\.mseed$")
 
+# each instrument's station code in CI filenames (OO-HYEA1--YDH-...). An instrument's folder
+# can hold other files: HYDBBA105's has other instruments' files on 2023-08-31 and 09-05, and a
+# second stream with location code T1 (OO-HYEA1-T1-YDH) from 2023-08-29 to 10-10.
+STATION = {
+    "HYDBBA102": "HYVM1",
+    "HYDBBA103": "HYVM2",
+    "HYDBBA105": "HYEA1",
+    "HYDBBA106": "HYEA2",
+    "HYDBBA302": "AXVM1",
+    "HYDBBA303": "AXVM2",
+}
+
+
+def own_files(paths, refdes):
+    """keep the mseed that belong to refdes: its station code, blank location. Logs what's
+    skipped."""
+    prefix = f"OO-{STATION[refdes[-9:]]}--YDH"
+    keep = [p for p in paths if Path(p).name.startswith(prefix)]
+    if len(keep) < len(paths):
+        other = sorted({re.sub(r"-?\d{4}-\d\d-\d\dT.*", "", Path(p).name) for p in paths if p not in keep})
+        select_logger().warning(f"ISSUE skipping {len(paths) - len(keep)} mseed not from {prefix}: {other}")
+    return keep
+
 
 
 def _map_concurrency(func, iterator, args=(), max_workers=-1, verbose=False):
@@ -320,6 +343,7 @@ class HydrophoneDay(MseedRepair):
 
         paths = [str(p) for p in sorted(day_dir.glob("*.mseed"))]
         paths += [str(p) for p in sorted(day_dir.glob("addendum/*.mseed"))]
+        paths = own_files(paths, refdes)
         if not paths:
             logger.warning(f"No local mseed for {day_str} in {day_dir}")
             return None
@@ -359,6 +383,7 @@ class HydrophoneDay(MseedRepair):
             raise RuntimeError(f"listing failed for {mainurl}") from e
 
         data_url_list.extend(addendum_list)
+        data_url_list = own_files(data_url_list, refdes)
 
         if not data_url_list:
             logger.warning("No Data Available for Specified Time")
