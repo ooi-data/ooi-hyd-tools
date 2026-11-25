@@ -216,7 +216,9 @@ CASE C  TOO MUCH    [==|==|==|==|==|==|==|==|==|==|==|==|==|=================]
 ```
 
 The repair discards nothing: a short file still yields audio, and missing time is reported
-rather than silently dropped. A gap counts as a real break only if it is longer than
+rather than silently dropped. The one exception is stretches under 1 s (`MIN_FILE_SECONDS`),
+ms-long stubs left where CI split a window into many files: they aren't written, but each is
+logged and listed in the manifest. A gap counts as a real break only if it is longer than
 `--gap-threshold` (OEK `TrHld2`, default 0.023 s) **and** longer than the file's own measured
 label noise. An overlap can't be real, since one ADC can't record an instant twice, so the
 largest overlap in a file measures how far its timestamps lie (10-250 ms observed, by
@@ -284,7 +286,8 @@ audio so its presence means the day finished:
   "seconds_written": 85799.844,
   "day_coverage_pct": 99.31,
   "collisions": [{"stamp": "HYDBBA105_20260819_014500.flac", "kept_s": 299.84,
-                  "dropped_s": 0.06, "dropped_start": "2026-08-19T01:45:00.098000Z"}],
+                  "dropped_s": 2.4, "dropped_start": "2026-08-19T01:45:00.098000Z"}],
+  "stubs": [{"start": "2026-08-19T03:10:00.001000Z", "seconds": 0.001}],
   "files": [{"name": "HYDBBA105_20260819_000000.flac",
              "start": "2026-08-19T00:00:00.014000Z", "npts": 19200000, "sampling_rate": 64000}]
 }
@@ -296,7 +299,8 @@ audio so its presence means the day finished:
 - `day_coverage_pct` separates a short recording day from a failed upload.
 - `collisions` records pieces dropped because two started in the same second (see Known
   issues). That audio is unique and is written nowhere else.
-- `day-rollup` writes the same fields from the FLAC on disk, with `gap_threshold_s` null,
+- `stubs` records pieces under 1 s that weren't written. `mseed-to-flac` logs them instead.
+- `day-rollup` writes the same fields from the FLAC on disk, with `gap_threshold_s` and `stubs` null,
   plus `generated`, `fingerprint` (what the products were built from) and `products` (the
   `.nc` and `.png` names, or the error). Its `collisions` are pieces the spectrogram left out.
 
@@ -407,7 +411,7 @@ Missing products first, then ordered by size of the error on delivered spectrogr
 | Placeholder | `HYDBBA105` deps 2, 4 and 10 | **True vendor cals missing.** Dep 10's doc is a pressure-test certificate, so it uses the prior cal; deps 2 and 4 have only plot-only certs before them, so they use the next later cal. Each carries a `placeholder` reason |
 | Collision loss | seafloor instruments; `HYDBBA106` 419 of 1,902 days | Two pieces starting in the same second can't both get a whole-second name; the guard keeps the longer and logs an ISSUE. The dropped piece is **unique audio**: ~1.4 h across `HYDBBA106`'s archive, but **about a third of the day** on days CI split into ~1,600 files (2019-12-08, 2022-11-29). `--flac-layout ooi` and `mseed-to-flac` name files to the microsecond and keep both; the pbp layout, and so every spectrogram, still drops one |
 | Mixed rates | `HYDBBA106` 2024-08-20 (6.4 kHz addenda), 2025-06-24 to 06-28 (64/128/256 kHz) | FLAC headers and manifests (from v1.8.2) carry each file's rate. Whether pbp handles mixed rates within a day is **unchecked**, so treat those days' spectrograms as suspect |
-| Junk stub files | seafloor instruments | Stubs straddling a file boundary round to their own second and survive as 64-sample FLACs - **152** on `HYDBBA102`'s 622-file 2016-07-20, **366** across `HYDBBA106`'s archive. Acoustically harmless; a minimum-duration floor would drop them |
+| Stale stub files | seafloor instruments, days processed before v1.11 | ms-long stubs were written as their own FLAC - **152** on `HYDBBA102`'s 622-file 2016-07-20, **366** across `HYDBBA106`'s archive. Pieces under 1 s are now dropped, but S3 uploads never delete, so a rerun leaves the old stubs in place. Acoustically harmless |
 | Duplicated packets | `HYDBBA105`, `HYDBBA302` 2023-06-15 17:25-17:35; extent unknown | CASE C (more samples than 5 min holds) on both instruments in the same three windows with matching sizes, pointing to duplicated packets shore-side. Audio is kept and flagged, so six FLACs run slightly over 300 s: **suspect for sample-accurate work**. `HYDBBA106`'s full archive has one (2026-10-25); the other instruments have **not been swept** |
 | Degenerate timestamps | `HYDBBA102` 2023-06-15; extent unknown | Every trace in a file shares one timestamp, so naming from the first trace **scatters output and fragments the spectrogram**; the audio itself is correct. Upstream only began per-trace starttimes in Sep-Oct 2023, so earlier data may be affected. Fix (name from the filename when labels span less time than the audio) not implemented; **not surveyed** |
 

@@ -26,6 +26,7 @@ from ooi_hyd_tools.cloud import sync_png_nc_to_s3
 from ooi_hyd_tools.mseed_to_flac import (
     INT24_SHIFT,
     day_manifest,
+    drop_stubs,
     keep_longer,
     ooi_name,
     pbp_name,
@@ -71,6 +72,7 @@ def convert_mseed_to_audio(
             if st is not None
             for tr in st  # normally one chunk; more when a real gap split the file
         ]
+        pieces, stubs = drop_stubs(pieces)
         for pc in pieces:
             # ooi: the server's naming, to the microsecond, so pieces never share a name
             pc["name"] = (
@@ -101,7 +103,8 @@ def convert_mseed_to_audio(
             for _, pc in sorted(kept.items())
         ]
         manifest = day_manifest(
-            hyd_refdes, hyd.date, files, len(hyd.mseed_urls), collisions, gap_threshold
+            hyd_refdes, hyd.date, files, len(hyd.mseed_urls), collisions, gap_threshold,
+            sorted(stubs, key=lambda s: s["start"]),
         )
         (flac_dir / manifest_name(hyd_refdes, hyd.date)).write_text(json.dumps(manifest, indent=2))
 

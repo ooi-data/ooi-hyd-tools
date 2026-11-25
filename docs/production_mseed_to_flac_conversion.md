@@ -34,6 +34,9 @@ mseed-to-flac --refdes CE02SHBP-LJ01D-11-HYDBBA106 \
   - A file whose data starts late (common in addenda) is named from where the data begins,
     e.g. `...T11:33:05.020000Z.flac` from a `...T11:30:00` mseed.
   - A real break in recording gives one FLAC per unbroken stretch.
+  - Stretches under 1 s aren't written: ms-long stubs where CI split a window into many
+    files. Each is logged as an `ISSUE`. A file that is all stub writes nothing and still
+    exits 0.
 - **Atomic writes:** each FLAC is written as `<name>.flac.part` and renamed when complete.
 - **Reruns** overwrite the same names.
 - **Exit status:** 1 if any input couldn't be read, so the caller can retry it.

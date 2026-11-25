@@ -23,7 +23,7 @@ import obspy as obs
 import soundfile as sf
 
 from ooi_hyd_tools.repair import MseedRepair
-from ooi_hyd_tools.thresholds import GAP_THRESHOLD
+from ooi_hyd_tools.thresholds import GAP_THRESHOLD, MIN_FILE_SECONDS
 from ooi_hyd_tools.utils import select_logger
 
 # mseed counts are 24-bit right-justified in int32 (full scale 2**23); libsndfile's int32
@@ -76,6 +76,22 @@ def pbp_name(refdes, start):
     return f"{refdes[-9:]}_{obs.UTCDateTime(start).strftime('%Y%m%d_%H%M%S')}"
 
 
+def drop_stubs(pieces, min_seconds=MIN_FILE_SECONDS):
+    """Split off pieces shorter than min_seconds: ms-long stubs CI leaves where it split a
+    window into many files. pieces: [{start, npts, sampling_rate, ...}]. Returns (kept,
+    stubs), stubs as [{start, seconds}] for the manifest."""
+    logger = select_logger()
+    kept, stubs = [], []
+    for p in pieces:
+        seconds = p["npts"] / p["sampling_rate"]
+        if seconds >= min_seconds:
+            kept.append(p)
+            continue
+        stubs.append({"start": str(p["start"]), "seconds": round(seconds, 6)})
+        logger.warning(f"ISSUE {p['start']}: dropping a {p['npts']}-sample stub, under {min_seconds}s")
+    return kept, stubs
+
+
 def keep_longer(pieces, key):
     """CI occasionally chops one 5-min window into pieces starting ~100 ms apart, which round
     to the same whole-second pbp name. Keep the longer piece per key(piece) and record the
@@ -101,10 +117,11 @@ def keep_longer(pieces, key):
     return kept, collisions
 
 
-def day_manifest(refdes, day, files, source_mseed_files, collisions, gap_threshold=None):
+def day_manifest(refdes, day, files, source_mseed_files, collisions, gap_threshold=None, stubs=None):
     """A day's coverage and file list. A day is ~288 files and often partial, so a consumer has
     no other way to tell a recording gap from a failed upload. files: [{name, start, npts,
-    sampling_rate}]; collisions: pieces dropped because they start in the same second."""
+    sampling_rate}]; collisions: pieces dropped because they start in the same second; stubs:
+    pieces under MIN_FILE_SECONDS, not written (None where they can't be known)."""
     seconds = sum(f["npts"] / f["sampling_rate"] for f in files)
     return {
         "refdes": refdes,
@@ -118,25 +135,26 @@ def day_manifest(refdes, day, files, source_mseed_files, collisions, gap_thresho
         "seconds_written": round(seconds, 3),
         "day_coverage_pct": round(100 * seconds / 86400, 2),
         "collisions": collisions,
+        "stubs": stubs,
         "files": files,
     }
 
 
 def convert_file(mseed, refdes, out_dir=None, gap_threshold=GAP_THRESHOLD):
     """repair one mseed and write its FLAC to out_dir, by default the mseed's own folder.
-    Returns the paths written; empty when the file can't be read."""
+    Returns the paths written, empty if the file was all stub; None if it can't be read."""
     st = MseedRepair(gap_threshold)._deal_with_gaps_and_overlaps(str(mseed))
     if st is None:
-        return []
+        return None
     out_dir = Path(out_dir or Path(mseed).parent)
     out_dir.mkdir(parents=True, exist_ok=True)
+    # one trace normally; more where repair found a real break
+    pieces = [{"tr": tr, "start": tr.stats.starttime, "npts": tr.stats.npts, "sampling_rate": int(tr.stats.sampling_rate)} for tr in st]
+    pieces, _ = drop_stubs(pieces)
     paths = []
-    for tr in st:  # one trace normally; more where repair found a real break
-        path = out_dir / f"{ooi_name(tr)}.flac"
-        sr = int(tr.stats.sampling_rate)
-        write_audio(
-            path, tr.data << INT24_SHIFT, sr, "PCM_24", refdes, tr.stats.starttime, tr.stats.npts
-        )
+    for pc in pieces:
+        path = out_dir / f"{ooi_name(pc['tr'])}.flac"
+        write_audio(path, pc["tr"].data << INT24_SHIFT, pc["sampling_rate"], "PCM_24", refdes, pc["start"], pc["npts"])
         paths.append(path)
     return paths
 
@@ -155,7 +173,9 @@ def cli(mseed, refdes, out_dir, gap_threshold):
     failed = []
     for m in mseed:
         paths = convert_file(m, refdes, out_dir, gap_threshold)
-        failed += [] if paths else [m]
+        if paths is None:
+            failed.append(m)
+            continue
         for p in paths:
             logger.info(f"wrote {p}")
     if failed:

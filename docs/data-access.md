@@ -88,6 +88,7 @@ this per day:
   "seconds_written": 86400.0,
   "day_coverage_pct": 100.0,
   "collisions": [],
+  "stubs": [],
   "files": [{"name": "...", "start": "...", "npts": 19200000, "sampling_rate": 64000}]
 }
 ```
@@ -97,6 +98,8 @@ this per day:
 - **A few days mix sampling rates**, so `sampling_rates` lists every rate in the day and each
   `files` entry carries its own. Manifests from before v1.8.2 have a single `sampling_rate`
   instead, which can be wrong on those days; the file header is always right.
+- **Pieces under 1 s aren't written.** From v1.11, `stubs` lists them by start and length.
+  Earlier deliveries can include a few millisecond-long FLAC; they're safe to ignore.
 
 ## Current delivery
 

@@ -15,5 +15,10 @@ COUNT_THRESHOLD = 0.01
 # (OEK TrHld2; the default for --gap-threshold)
 GAP_THRESHOLD = 0.023
 
+# Repaired stretches shorter than this aren't written as FLAC. Where CI split a window into
+# many files, ms-long stubs (often 64 samples) land as their own pieces; each drop is logged
+# and listed in the day's manifest.
+MIN_FILE_SECONDS = 1.0
+
 # Hybrid millidecade spectrogram band, Hz (min, max); the default for --freq-lims
 FREQ_LIMS = (10, 30_000)
