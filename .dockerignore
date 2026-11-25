@@ -3,6 +3,10 @@
 __pycache__/
 .vscode/
 .ruff_cache/
+.venv/
+.git/
+notebooks/
+logs/
 
 # Ignore certain data dirs in pbp dir structure
 ooi_hyd_tools/data/
