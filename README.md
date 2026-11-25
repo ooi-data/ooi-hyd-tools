@@ -16,6 +16,7 @@ and [hydrophone_downloader](https://github.com/bnestor/hydrophone_downloader).
 | [Live stream](#live-stream-to-orcasound) | delayed HLS of the broadband hydrophones for live.orcasound.net |
 | [Hydrophone calibrations](#hydrophone-calibrations) | cal specs, where the certs come from, how one is chosen |
 | [Known issues to fix](#known-issues-to-fix) | current defects, ordered by size of error on delivered products |
+| [Archive coverage](#archive-coverage) | spectrogram days on S3 against days on the raw data server |
 | [Broadband hydrophones](#broadband-hydrophones) | refdes, site and lat/lon |
 
 Longer notes live in [`docs/`](docs/):
@@ -392,10 +393,11 @@ calibration. Built cal files record `source_spec`, `source_pdf`, the `lf_*` valu
 
 # Known issues to fix
 
-Ordered by size of the error on delivered spectrograms.
+Missing products first, then ordered by size of the error on delivered spectrograms.
 
 | issue | where | detail |
 |---|---|---|
+| Not processed | all instruments; 2015-2017 entirely | **Most of the archive has no spectrogram**: 12-76% of raw days by instrument (see [Archive coverage](#archive-coverage)). 2015-2017 has only spot-check days, and 105 and 106 are thin in most years. 103 and 303 before 2025 also need cals (No cal, below) |
 | Reprocess | `HYDBBA302` 2016-07-12 to 2017-07-31 | Dep 3 was calibrated with a 2018 sheet postdating a hardware rebuild. Cal now correct; products from that window are **-4.68 dB off on average, up to 8.65 dB at 190.7 kHz** |
 | Suspect cert | `HYDBBA106` deps 1 and 3 (2014-2015, 2016-2017) | The 2013 cert `ATOSU-58324-00014__20130802` tabulates -175.1 dB at 13.5 kHz, **3-5 dB below every later cert for that hydrophone**, though its 26 Hz value matches them. Transcribed correctly, so either the cert is wrong or the unit changed. Products above 13.5 kHz are suspect by several dB |
 | Reprocess | `HYDBBA102` 2016-07-17 to 2017-07-29 | Dep 3 was calibrated with dep 2's hydrophone. Cal now correct; products from that window are **-2.10 dB off on average, up to 5.40 dB at 90.4 kHz** |
@@ -409,6 +411,34 @@ Ordered by size of the error on delivered spectrograms.
 | Junk stub files | seafloor instruments | Stubs straddling a file boundary round to their own second and survive as 64-sample FLACs - **152** on `HYDBBA102`'s 622-file 2016-07-20, **366** across `HYDBBA106`'s archive. Acoustically harmless; a minimum-duration floor would drop them |
 | Duplicated packets | `HYDBBA105`, `HYDBBA302` 2023-06-15 17:25-17:35; extent unknown | CASE C (more samples than 5 min holds) on both instruments in the same three windows with matching sizes, pointing to duplicated packets shore-side. Audio is kept and flagged, so six FLACs run slightly over 300 s: **suspect for sample-accurate work**. `HYDBBA106`'s full archive has one (2026-10-25); the other instruments have **not been swept** |
 | Degenerate timestamps | `HYDBBA102` 2023-06-15; extent unknown | Every trace in a file shares one timestamp, so naming from the first trace **scatters output and fragments the spectrogram**; the audio itself is correct. Upstream only began per-trace starttimes in Sep-Oct 2023, so earlier data may be affected. Fix (name from the filename when labels span less time than the audio) not implemented; **not surveyed** |
+
+The two Reprocess windows hold one delivered day each so far (2016-07-20 and 2017-03-20);
+backfilling them with the current cals clears both rows.
+
+# Archive coverage
+
+Spectrogram days in `s3://ooi-hmb-data/hmb/` against day folders on the raw data server, as of
+2026-11-25. A raw day folder can hold a partial day, so 100% isn't expected.
+
+| year | 106 | 105 | 102 | 103 | 302 | 303 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 2015 | 0 / 41 | 0 / 41 | 0 / 41 | 0 / 41 | 0 / 34 | 0 / 37 |
+| 2016 | 1 / 282 | 1 / 307 | 1 / 309 | 0 / 323 | 1 / 309 | 0 / 284 |
+| 2017 | 1 / 342 | 1 / 267 | 1 / 323 | 0 / 317 | 1 / 344 | 0 / 346 |
+| 2018 | 48 / 198 | 40 / 275 | 310 / 315 | 0 / 127 | 321 / 325 | 0 / 180 |
+| 2019 | 165 / 207 | 68 / 69 | 339 / 340 | 0 / 148 | 340 / 340 | 0 / 37 |
+| 2020 | 0 / 8 | - | 216 / 222 | 0 / 91 | 122 / 222 | 0 / 222 |
+| 2021 | 67 / 67 | 118 / 119 | 316 / 323 | 0 / 322 | 329 / 332 | 0 / 333 |
+| 2022 | 12 / 23 | 317 / 318 | 300 / 318 | 0 / 306 | 285 / 285 | 0 / 310 |
+| 2023 | 0 / 131 | 1 / 300 | 121 / 330 | 0 / 333 | 332 / 332 | 0 / 332 |
+| 2024 | 32 / 355 | 32 / 352 | 355 / 358 | 0 / 340 | 355 / 358 | 0 / 358 |
+| 2025 | 157 / 353 | 68 / 269 | 333 / 361 | 111 / 356 | 334 / 362 | 113 / 359 |
+| 2026 | 283 / 327 | 129 / 153 | 288 / 327 | 283 / 327 | 286 / 327 | 285 / 327 |
+| all | **33%** | **31%** | **72%** | **13%** | **76%** | **13%** |
+
+`check-flac --flac-root s3://ooi-hmb-data/flac` lists days with mseed but no FLAC on S3. A day
+can have FLAC but no `.nc` (pbp failed), so compare `hmb/` listings too.
+`acoustic-pipeline --runner prefect --s3-sync all` fills both.
 
 # Broadband hydrophones
 
