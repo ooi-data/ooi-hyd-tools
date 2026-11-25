@@ -352,8 +352,8 @@ full scale and `audio_to_spec.py` sets `VOLTAGE_MULTIPLIER = 3` (the ADC's 3 V f
 sheet values apply unmodified. This retired the `rca_correction_cals` copies with a baked-in
 +128.9 dB offset ([docs/24-bit-counts.md](docs/24-bit-counts.md)).
 
-The seafloor instruments (HYDBBA102, 105, 106, 302) have cals from deployment 1; of the
-mooring-mounted ones, HYDBBA303 from deployment 10 and HYDBBA103 from deployment 12.
+Every deployment of all six instruments has a cal file; three on HYDBBA105 are placeholders
+(see Known issues).
 
 ### Calibration yamls are the source of truth
 
@@ -397,15 +397,14 @@ Missing products first, then ordered by size of the error on delivered spectrogr
 
 | issue | where | detail |
 |---|---|---|
-| Not processed | all instruments; 2015-2017 entirely | **Most of the archive has no spectrogram**: 12-76% of raw days by instrument (see [Archive coverage](#archive-coverage)). 2015-2017 has only spot-check days, and 105 and 106 are thin in most years. 103 and 303 before 2025 also need cals (No cal, below) |
+| Not processed | all instruments; 2015-2017 entirely | **Most of the archive has no spectrogram**: 12-76% of raw days by instrument (see [Archive coverage](#archive-coverage)). 2015-2017 has only spot-check days, and 105 and 106 are thin in most years |
 | Reprocess | `HYDBBA302` 2016-07-12 to 2017-07-31 | Dep 3 was calibrated with a 2018 sheet postdating a hardware rebuild. Cal now correct; products from that window are **-4.68 dB off on average, up to 8.65 dB at 190.7 kHz** |
 | Suspect cert | `HYDBBA106` deps 1 and 3 (2014-2015, 2016-2017) | The 2013 cert `ATOSU-58324-00014__20130802` tabulates -175.1 dB at 13.5 kHz, **3-5 dB below every later cert for that hydrophone**, though its 26 Hz value matches them. Transcribed correctly, so either the cert is wrong or the unit changed. Products above 13.5 kHz are suspect by several dB |
 | Reprocess | `HYDBBA102` 2016-07-17 to 2017-07-29 | Dep 3 was calibrated with dep 2's hydrophone. Cal now correct; products from that window are **-2.10 dB off on average, up to 5.40 dB at 90.4 kHz** |
 | Modeled | all instruments, below 10 kHz | Certs tabulate from 10 kHz (13.5 kHz on four early deployments); below that the cal is a first-order roll-off through the cert's 26 Hz value, 10 Hz corner, **within ~1.5 dB at 10 Hz**. Products without `calibration_lf_*` attributes predate the model (2026-10-06) and use a flat copy of the first table point |
-| Untracked | all instruments | Sheets bake a **preamp gain** into the sensitivity (36 dB on most, 30 dB on `ATAPL-58324-00005__20131211`) but specs don't record it, so a mismatched preamp would go unnoticed |
+| Untracked | all instruments | Sheets bake a **preamp gain** into the sensitivity (30 dB on the 2013-2015 certs checked, 36 dB from 2017) but specs don't record it, so a mismatched preamp would go unnoticed |
 | Step change | all instruments, >12 kHz | The v1.7 bit-depth fix removed **+0.96 dB at 20-27 kHz** (+0.45 at 12-20 kHz). Within daily variability, but a step in multi-year records; note reprocess dates for trend work |
 | Placeholder | `HYDBBA105` deps 2, 4 and 10 | **True vendor cals missing.** Dep 10's doc is a pressure-test certificate, so it uses the prior cal; deps 2 and 4 have only plot-only certs before them, so they use the next later cal. Each carries a `placeholder` reason |
-| No cal | `HYDBBA303` deps 1-9 (2014-2024), `HYDBBA103` deps 1-11 (2014-2025) | Not transcribed, so spectrograms raise `FileNotFoundError` for about ten years of each. Certs exist in calibrationFiles. **Deprioritised**: both are mooring-mounted |
 | Collision loss | seafloor instruments; `HYDBBA106` 419 of 1,902 days | Two pieces starting in the same second can't both get a whole-second name; the guard keeps the longer and logs an ISSUE. The dropped piece is **unique audio**: ~1.4 h across `HYDBBA106`'s archive, but **about a third of the day** on days CI split into ~1,600 files (2019-12-08, 2022-11-29). `--flac-layout ooi` and `mseed-to-flac` name files to the microsecond and keep both; the pbp layout, and so every spectrogram, still drops one |
 | Mixed rates | `HYDBBA106` 2024-08-20 (6.4 kHz addenda), 2025-06-24 to 06-28 (64/128/256 kHz) | FLAC headers and manifests (from v1.8.2) carry each file's rate. Whether pbp handles mixed rates within a day is **unchecked**, so treat those days' spectrograms as suspect |
 | Junk stub files | seafloor instruments | Stubs straddling a file boundary round to their own second and survive as 64-sample FLACs - **152** on `HYDBBA102`'s 622-file 2016-07-20, **366** across `HYDBBA106`'s archive. Acoustically harmless; a minimum-duration floor would drop them |
