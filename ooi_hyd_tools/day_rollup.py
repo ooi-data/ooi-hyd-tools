@@ -47,6 +47,7 @@ def day_flac(day_dir):
                     "start": f.date,  # exact, sub-second; see mseed_to_flac.write_audio
                     "npts": f.frames,
                     "sampling_rate": f.samplerate,
+                    "timing": "approximate" if "timing=approximate" in f.comment else None,
                     "path": p,
                 }
             )
@@ -119,8 +120,7 @@ def roll_up_day(root, refdes, day, meta_dir=META_DIR, force=False):
         logger.opt(exception=error).error(f"{refdes[-9:]} {day:%Y-%m-%d}: spectrogram failed")
 
     source_mseed = len(list(day_dir.glob("*.mseed")) + list(day_dir.glob("addendum/*.mseed")))
-    listed = [{k: f[k] for k in ("name", "start", "npts", "sampling_rate")} for f in files]
-    manifest = day_manifest(refdes, day, listed, source_mseed, collisions) | {
+    manifest = day_manifest(refdes, day, files, source_mseed, collisions) | {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "fingerprint": fp,
         "products": products,

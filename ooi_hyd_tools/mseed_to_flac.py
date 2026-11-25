@@ -32,8 +32,9 @@ from ooi_hyd_tools.utils import select_logger
 INT24_SHIFT = 8
 
 
-def write_audio(path, data, sr, subtype, refdes, start, npts):
-    """write one audio file, stamping the exact start time into the header.
+def write_audio(path, data, sr, subtype, refdes, start, npts, timing=None):
+    """write one audio file, stamping the exact start time into the header. timing="approximate"
+    adds timing=approximate to the comment: the start is right, later samples may not be.
 
     Filenames only carry whole seconds, because that is the finest resolution mbari-pbp
     can parse (meta_gen/utils.py matches {prefix}_YYYYMMDD_HHMMSS. and nothing after).
@@ -57,7 +58,7 @@ def write_audio(path, data, sr, subtype, refdes, start, npts):
         # counts= says what the integers mean, for readers who have no changelog to consult
         f.comment = (
             f"refdes={refdes} start={start} npts={npts} sampling_rate={sr} "
-            f"counts=int24_left_justified"
+            f"counts=int24_left_justified" + (f" timing={timing}" if timing else "")
         )
         f.write(data)
     part.replace(path)
@@ -120,9 +121,10 @@ def keep_longer(pieces, key):
 def day_manifest(refdes, day, files, source_mseed_files, collisions, gap_threshold=None, stubs=None):
     """A day's coverage and file list. A day is ~288 files and often partial, so a consumer has
     no other way to tell a recording gap from a failed upload. files: [{name, start, npts,
-    sampling_rate}]; collisions: pieces dropped because they start in the same second; stubs:
-    pieces under MIN_FILE_SECONDS, not written (None where they can't be known)."""
+    sampling_rate, timing?}]; collisions: pieces dropped because they start in the same second;
+    stubs: pieces under MIN_FILE_SECONDS, not written (None where they can't be known)."""
     seconds = sum(f["npts"] / f["sampling_rate"] for f in files)
+    keys = ("name", "start", "npts", "sampling_rate")
     return {
         "refdes": refdes,
         "date": day.strftime("%Y-%m-%d"),
@@ -136,7 +138,9 @@ def day_manifest(refdes, day, files, source_mseed_files, collisions, gap_thresho
         "day_coverage_pct": round(100 * seconds / 86400, 2),
         "collisions": collisions,
         "stubs": stubs,
-        "files": files,
+        # one label on every packet; see thresholds.LABEL_SPAN_FRACTION
+        "approximate_timing": [f["name"] for f in files if f.get("timing") == "approximate"],
+        "files": [{k: f[k] for k in keys} for f in files],
     }
 
 
@@ -154,7 +158,10 @@ def convert_file(mseed, refdes, out_dir=None, gap_threshold=GAP_THRESHOLD):
     paths = []
     for pc in pieces:
         path = out_dir / f"{ooi_name(pc['tr'])}.flac"
-        write_audio(path, pc["tr"].data << INT24_SHIFT, pc["sampling_rate"], "PCM_24", refdes, pc["start"], pc["npts"])
+        write_audio(
+            path, pc["tr"].data << INT24_SHIFT, pc["sampling_rate"], "PCM_24", refdes, pc["start"], pc["npts"],
+            pc["tr"].stats.get("timing"),
+        )
         paths.append(path)
     return paths
 

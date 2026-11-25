@@ -45,7 +45,8 @@ mseed-to-flac --refdes CE02SHBP-LJ01D-11-HYDBBA106 \
 - **Cost:** about 0.6 s and 400 MB of memory per 5-minute file on a laptop.
 - **FLAC contents:** raw 24-bit counts at the recorded rate, the same science data as the
   mseed, losslessly compressed. The header holds the refdes, exact start, sample count, sample
-  rate and converter version.
+  rate and converter version, plus `timing=approximate` where the start is right but later
+  samples may be placed early (2023-06-07 to 2023-10-05 data only).
 - **Size:** about two-thirds of the mseed. One Oregon Shelf file was 26 MB of FLAC against
   39 MB of mseed. That's roughly 7.5 GB a day, or 2.7 TB a year, per instrument.
 

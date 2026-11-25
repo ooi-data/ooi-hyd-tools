@@ -89,6 +89,7 @@ this per day:
   "day_coverage_pct": 100.0,
   "collisions": [],
   "stubs": [],
+  "approximate_timing": [],
   "files": [{"name": "...", "start": "...", "npts": 19200000, "sampling_rate": 64000}]
 }
 ```
@@ -100,6 +101,10 @@ this per day:
   instead, which can be wrong on those days; the file header is always right.
 - **Pieces under 1 s aren't written.** From v1.11, `stubs` lists them by start and length.
   Earlier deliveries can include a few millisecond-long FLAC; they're safe to ignore.
+- **Timing is approximate in some 2023 files.** From 2023-06-07 to 2023-10-05 the raw data
+  carries one timestamp per file. Where recording was partial, the file's start is right but
+  its gaps can't be located, so later samples may sit early. From v1.12 these are listed in
+  `approximate_timing` and carry `timing=approximate` in the header comment.
 
 ## Current delivery
 

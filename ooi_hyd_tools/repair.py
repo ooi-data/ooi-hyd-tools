@@ -24,7 +24,7 @@ import numpy as np
 import obspy as obs
 from tqdm import tqdm
 
-from ooi_hyd_tools.thresholds import COUNT_THRESHOLD, GAP_THRESHOLD
+from ooi_hyd_tools.thresholds import COUNT_THRESHOLD, GAP_THRESHOLD, LABEL_SPAN_FRACTION
 from ooi_hyd_tools.utils import select_logger
 
 # CI writes mseed in 5-min files on fixed startpoints (00:00, 00:05, ...), so a complete
@@ -221,6 +221,16 @@ class MseedRepair:
             f"{len(real)} break(s) account for {explained / sr:.2f}s "
             f"(label noise here {label_noise_s * 1000:.0f} ms); writing {len(chunks)} file(s)"
         )
+        # one label on every packet: the start is right, but the missing time sits at unknown
+        # points inside, so audio after the first gap is placed early
+        if self._degenerate_labels(st, sr, samples):
+            logger.warning(
+                f"ISSUE {nominal}: every packet labelled {st[0].stats.starttime}; "
+                f"{deficit / sr:.2f}s missing at points that can't be located, timing approximate"
+            )
+            for tr in chunks:
+                tr.stats.timing = "approximate"
+            return obs.Stream(traces=chunks)
         if abs(explained - deficit) > tol:
             logger.warning(
                 f"ISSUE {nominal}: {(deficit - explained) / sr:.2f}s of the missing "
@@ -228,6 +238,12 @@ class MseedRepair:
                 f"early, or breaks are smaller than {max(self.gap_threshold, label_noise_s)}s"
             )
         return obs.Stream(traces=chunks)
+
+    def _degenerate_labels(self, st, sr, samples):
+        """True when the trace labels span much less time than the audio they hold - every
+        packet carries one timestamp (all instruments, 2023-06-07 to 2023-10-05)."""
+        span = max(tr.stats.starttime + tr.stats.npts / sr for tr in st) - min(tr.stats.starttime for tr in st)
+        return span < LABEL_SPAN_FRACTION * samples / sr
 
     def _label_noise(self, deltas, sr):
         """seconds by which this file's trace starttimes are known to be wrong.

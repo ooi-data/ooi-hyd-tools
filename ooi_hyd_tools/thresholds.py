@@ -20,5 +20,10 @@ GAP_THRESHOLD = 0.023
 # and listed in the day's manifest.
 MIN_FILE_SECONDS = 1.0
 
+# A file whose trace labels span less than this fraction of its audio has one timestamp on
+# every packet (all instruments, 2023-06-07 to 2023-10-05). The label dates the first packet;
+# a partial file's internal gaps can't be located, so its FLAC is flagged timing=approximate.
+LABEL_SPAN_FRACTION = 0.5
+
 # Hybrid millidecade spectrogram band, Hz (min, max); the default for --freq-lims
 FREQ_LIMS = (10, 30_000)

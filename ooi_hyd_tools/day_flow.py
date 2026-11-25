@@ -67,6 +67,7 @@ def convert_mseed_to_audio(
                 "start": tr.stats.starttime,
                 "npts": tr.stats.npts,
                 "sampling_rate": int(tr.stats.sampling_rate),
+                "timing": tr.stats.get("timing"),
             }
             for url, st in zip(hyd.mseed_urls, hyd.clean_list)
             if st is not None
@@ -96,10 +97,11 @@ def convert_mseed_to_audio(
                 hyd_refdes,
                 pc["start"],
                 pc["npts"],
+                pc["timing"],
             )
 
         files = [  # sorted: clean_list is filled by a thread pool
-            {"name": pc["name"], "start": str(pc["start"]), "npts": pc["npts"], "sampling_rate": pc["sampling_rate"]}
+            {k: str(pc[k]) if k == "start" else pc[k] for k in ("name", "start", "npts", "sampling_rate", "timing")}
             for _, pc in sorted(kept.items())
         ]
         manifest = day_manifest(
